@@ -1,0 +1,13 @@
+/**/*.o
+/**/*.ko
+/**/*.symvers
+/**/.*.ko.cmd
+/**/.*.c.swp
+/**/.*.o.cmd
+/**/.*.mod
+/**/*.mod.c
+/**/*.order
+/linux/Module.symvers
+/**/.tmp_versions/*
+/test/seatalk_test
+/test/seatalk_test.exe
