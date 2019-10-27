@@ -90,7 +90,7 @@ void update_seatalk_state(char *datagram) {
 //    pr_info("%x ", datagram[i]);
 //  }
 //  pr_info("\n");
-  parse_seatalk_datagram(datagram);
+  handle_seatalk_datagram(datagram);
 //  state_updated();
 }
 

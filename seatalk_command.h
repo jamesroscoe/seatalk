@@ -1,5 +1,3 @@
-#include "seatalk_datagram.h"
-
 int seatalk_command_pending(void);
 void send_command(int length);
 void set_lamp_intensity(int level);

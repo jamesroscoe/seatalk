@@ -5,11 +5,311 @@
 
 #define TEST_BUILD(DATAGRAM_CODE) TEST(build_##DATAGRAM_CODE)\
   char datagram[256];
+
+#define TEST_DATAGRAM(DATAGRAM_CODE) TEST(datagram_##DATAGRAM_CODE)
+#define CHECK_INT(NAME) assert_equal_int(NAME ## _in, NAME ## _out, #NAME)
+
 void print_datagram(char *datagram, int length) {
   for (int i = 0; i < length; i++) {
     printf("%.2x ", datagram[i]);
   }
   printf("\n");
+}
+
+void assert_depth_below_transducer(int depth_in_feet_times_10_in, int display_in_metres_in, int active_alarms_in, int transducer_defective_in) {
+  char datagram[256];
+  int depth_in_feet_times_10_out, display_in_metres_out, active_alarms_out, transducer_defective_out;
+  assert_equal_int(DATAGRAM_00_LENGTH, build_depth_below_transducer(datagram, depth_in_feet_times_10_in, display_in_metres_in, active_alarms_in, transducer_defective_in), "incorrect datagram length");
+  parse_depth_below_transducer(datagram, &depth_in_feet_times_10_out, &display_in_metres_out, &active_alarms_out, &transducer_defective_out);
+  CHECK_INT(depth_in_feet_times_10);
+//  CHECK_INT(depth_in_feet_times_10);
+  CHECK_INT(display_in_metres);
+  CHECK_INT(active_alarms);
+  CHECK_INT(transducer_defective);
+}
+
+TEST_DATAGRAM(00) // depth below transducer
+  for (int i = 0; i < 10000; i++) {
+    assert_depth_below_transducer(i, 0, 0, 0);
+  }
+  assert_depth_below_transducer(5, 1, 0, 0);
+  assert_depth_below_transducer(5, 0, SHALLOW_WATER_ALARM, 0);
+  assert_depth_below_transducer(5, 0, DEEP_WATER_ALARM, 0);
+  assert_depth_below_transducer(5, 0, ANCHOR_ALARM, 0);
+  assert_depth_below_transducer(5, 0, SHALLOW_WATER_ALARM | DEEP_WATER_ALARM | ANCHOR_ALARM, 0); // unrealistic situation since shallow and deep can't be active together, of course
+  assert_depth_below_transducer(5, 0, 0, 1);
+}
+
+//TEST_DATAGRAM(01) // equipment id
+
+void assert_engine_rpm_and_pitch(enum ENGINE_ID engine_id_in, int rpm_in, int pitch_percent_in) {
+  char datagram[256];
+  enum ENGINE_ID engine_id_out;
+  int rpm_out, pitch_percent_out;
+  assert_equal_int(DATAGRAM_05_LENGTH, build_engine_rpm_and_pitch(datagram, engine_id_in, rpm_in, pitch_percent_in), "incorrect datagram length");
+  parse_engine_rpm_and_pitch(datagram, &engine_id_out, &rpm_out, &pitch_percent_out);
+  CHECK_INT(engine_id);
+  CHECK_INT(rpm);
+  CHECK_INT(pitch_percent);
+}
+
+TEST_DATAGRAM(05) // engine RPM and pitch
+  for (int i = 0; i < 10000; i++) {
+    assert_engine_rpm_and_pitch(ENGINE_ID_SINGLE, i, 0);
+  }
+  assert_engine_rpm_and_pitch(ENGINE_ID_PORT, 1000, 0);
+  assert_engine_rpm_and_pitch(ENGINE_ID_STARBOARD, 1000, 0);
+  assert_engine_rpm_and_pitch(ENGINE_ID_SINGLE, 1000, 10);
+  assert_engine_rpm_and_pitch(ENGINE_ID_SINGLE, 1000, -10);
+}
+
+void assert_apparent_wind_angle(int degrees_right_times_2_in) {
+  char datagram[256];
+  int degrees_right_times_2_out;
+  assert_equal_int(DATAGRAM_10_LENGTH, build_apparent_wind_angle(datagram, degrees_right_times_2_in), "incorrect datagram length");
+  parse_apparent_wind_angle(datagram, &degrees_right_times_2_out);
+  CHECK_INT(degrees_right_times_2);
+}
+
+TEST_DATAGRAM(10) // apparent wind angle
+  for (int i = -180; i <= 180; i++) {
+    for (int j = 0; j <= 1; j++) {
+      assert_apparent_wind_angle((2 * i) + j);
+    }
+  }
+}
+
+void assert_apparent_wind_speed(int knots_times_10_in, int display_in_metric_in) {
+  char datagram[256];
+  int knots_times_10_out, display_in_metric_out;
+  assert_equal_int(DATAGRAM_11_LENGTH, build_apparent_wind_speed(datagram, knots_times_10_in, display_in_metric_in), "invalid datagram_length");
+  parse_apparent_wind_speed(datagram, &knots_times_10_out, &display_in_metric_out);
+  CHECK_INT(knots_times_10);
+  CHECK_INT(display_in_metric);
+}
+
+TEST_DATAGRAM(11) // apparent wind speed
+  for (int i = 0; i <= 100; i++) {
+    for (int j = 0; j <= 9; j++) {
+      assert_apparent_wind_speed((i * 10) + j, 0);
+    }
+  }
+  assert_apparent_wind_speed(100, 1);
+}
+
+void assert_water_speed(int knots_times_10_in) {
+  char datagram[256];
+  int knots_times_10_out;
+  assert_equal_int(DATAGRAM_20_LENGTH, build_water_speed(datagram, knots_times_10_in), "invalid datagram_length");
+  parse_water_speed(datagram, &knots_times_10_out);
+  CHECK_INT(knots_times_10);
+}
+
+TEST_DATAGRAM(20) // water speed
+  for (int i = 0; i < 250; i++) {
+    for (int j = 0; j <= 0; j++) {
+      assert_water_speed((i * 10) + j);
+    }
+  }
+}
+
+void assert_trip_mileage(int mileage_times_100_in) {
+  char datagram[256];
+  int mileage_times_100_out;
+  assert_equal_int(DATAGRAM_21_LENGTH, build_trip_mileage(datagram, mileage_times_100_in), "incorrect datagram length");
+  parse_trip_mileage(datagram, &mileage_times_100_out);
+  CHECK_INT(mileage_times_100);
+}
+
+TEST_DATAGRAM(21) // trip mileage
+  for (int i = 0; i <= 10484 / 100; i += 101) {
+    for (int j = 0; j <= 99; j++) {
+      assert_trip_mileage((i * 100) + j);
+    }
+  }
+}
+
+void assert_total_mileage(int mileage_times_10_in) {
+  char datagram[256];
+  int mileage_times_10_out;
+  assert_equal_int(DATAGRAM_22_LENGTH, build_total_mileage(datagram, mileage_times_10_in), "incorrect_datagram_length");
+  parse_total_mileage(datagram, &mileage_times_10_out);
+  CHECK_INT(mileage_times_10);
+}
+
+TEST_DATAGRAM(22) // total mileage
+  for (int i = 0; i <= 0xfff0 / 10; i++) {
+    for (int j = 0; j <= 9; j++) {
+      assert_total_mileage((i * 10) + j);
+    }
+  }
+}
+
+void assert_water_temperature(int degrees_fahrenheit_in, int transducer_defective_in) {
+  char datagram[256];
+  int degrees_fahrenheit_out, transducer_defective_out;
+  assert_equal_int(DATAGRAM_23_LENGTH, build_water_temperature(datagram, degrees_fahrenheit_in, transducer_defective_in), "incorrect datagram length");
+  parse_water_temperature(datagram, &degrees_fahrenheit_out, &transducer_defective_out);
+  CHECK_INT(degrees_fahrenheit);
+  CHECK_INT(transducer_defective);
+}
+
+TEST_DATAGRAM(23) // water temperature
+  for (int i = 0; i <= 255; i++) {
+    assert_water_temperature(i, 0);
+  }
+  assert_water_temperature(75, 1);
+}
+
+void assert_speed_distance_units(enum DISTANCE_UNITS distance_units_in) {
+  char datagram[256];
+  enum DISTANCE_UNITS distance_units_out;
+  assert_equal_int(DATAGRAM_24_LENGTH, build_speed_distance_units(datagram, distance_units_in), "incorrect datagram length");
+  parse_speed_distance_units(datagram, &distance_units_out);
+  CHECK_INT(distance_units);
+}
+
+TEST_DATAGRAM(24) // display units for mileage and speed
+  assert_speed_distance_units(DISTANCE_UNITS_NAUTICAL);
+  assert_speed_distance_units(DISTANCE_UNITS_STATUTE);
+  assert_speed_distance_units(DISTANCE_UNITS_METRIC);
+}
+
+void assert_total_and_trip_mileage(int total_nm_times_10_in, int trip_nm_times_100_in) {
+  char datagram[256];
+  int total_nm_times_10_out, trip_nm_times_100_out;
+  assert_equal_int(DATAGRAM_25_LENGTH, build_total_and_trip_mileage(datagram, total_nm_times_10_in, trip_nm_times_100_in), "incorrect datagram length");
+  parse_total_and_trip_mileage(datagram, &total_nm_times_10_out, &trip_nm_times_100_out);
+  CHECK_INT(total_nm_times_10);
+  CHECK_INT(trip_nm_times_100);
+}
+
+TEST_DATAGRAM(25) // total and trip mileage
+  for (int i = 0; i < 104856; i += 101) {
+    for (int j = 0; j <= 9; j++) {
+      assert_total_and_trip_mileage((i * 10) + j, 0);
+    }
+  }
+  for (int i = 0; i < 10484; i += 97) {
+    for (int j = 0; j <= 99; j++) {
+      assert_total_and_trip_mileage(0, (i * 100) + j);
+    }
+  }
+}
+
+void assert_average_water_speed(int knots_1_times_100_in, int knots_2_times_100_in, int speed_1_from_sensor_in, int speed_2_is_average_in, int average_is_stopped_in, int display_in_statute_miles_in) {
+  char datagram[256];
+  int knots_1_times_100_out, knots_2_times_100_out, speed_1_from_sensor_out, speed_2_is_average_out, average_is_stopped_out, display_in_statute_miles_out;
+  assert_equal_int(DATAGRAM_26_LENGTH, build_average_water_speed(datagram, knots_1_times_100_in, knots_2_times_100_in, speed_1_from_sensor_in, speed_2_is_average_in, average_is_stopped_in, display_in_statute_miles_in), "incorrect datagram length");
+  parse_average_water_speed(datagram, &knots_1_times_100_out, &knots_2_times_100_out, &speed_1_from_sensor_out, &speed_2_is_average_out, &average_is_stopped_out, &display_in_statute_miles_out);
+  CHECK_INT(knots_1_times_100);
+  CHECK_INT(knots_2_times_100);
+  CHECK_INT(speed_1_from_sensor);
+  CHECK_INT(speed_2_is_average);
+  CHECK_INT(average_is_stopped);
+  CHECK_INT(display_in_statute_miles);
+}
+
+TEST_DATAGRAM(26) // water speed for two sensors or with average
+  for (int i = 0; i < 65000; i += 101) {
+    assert_average_water_speed(i, 600, 1, 1, 0, 0);
+    assert_average_water_speed(600, i, 1, 1, 0, 0);
+  }
+  assert_average_water_speed(600, 600, 0, 0, 1, 1);
+}
+
+void assert_precise_water_temperature(int degrees_celsius_times_10_in) {
+  char datagram[256];
+  int degrees_celsius_times_10_out;
+  assert_equal_int(DATAGRAM_27_LENGTH, build_precise_water_temperature(datagram, degrees_celsius_times_10_in), "incorrect datagram length");
+  parse_precise_water_temperature(datagram, &degrees_celsius_times_10_out);
+  CHECK_INT(degrees_celsius_times_10);
+}
+
+TEST_DATAGRAM(27) // water temperature precise to 0.1 degrees C
+  for (int i = 0; i <= 650; i += 101) {
+    for (int j = 0; j < 100; j++) {
+      assert_precise_water_temperature((i * 100) + j);
+    }
+  }
+}
+
+void assert_lamp_intensity(int intensity_in) {
+  char datagram[256];
+  int intensity_out;
+  assert_equal_int(DATAGRAM_30_LENGTH, build_lamp_intensity(datagram, intensity_in), "incorrect datagram length");
+  parse_lamp_intensity(datagram, &intensity_out);
+  CHECK_INT(intensity);
+}
+
+TEST_DATAGRAM(30) // set lamp intensity
+  for (int i = 0; i <= 3; i++) {
+    assert_lamp_intensity(i);
+  }
+}
+
+void assert_lat_position(int degrees_in, int minutes_times_100_in) {
+  char datagram[256];
+  int degrees_out, minutes_times_100_out;
+  assert_equal_int(DATAGRAM_50_LENGTH, build_lat_position(datagram, degrees_in, minutes_times_100_in), "incorrect datagram length");
+  parse_lat_position(datagram, &degrees_out, &minutes_times_100_out);
+  CHECK_INT(degrees);
+  CHECK_INT(minutes_times_100);
+}
+
+TEST_DATAGRAM(50) // latitude
+  for (int i = -89; i < 90; i += 5) {
+    for (int j = 0; j < 6000; j += 37) {
+      assert_lat_position(i, j);
+    }
+  }
+}
+
+void assert_lon_position(int degrees_in, int minutes_times_100_in) {
+  char datagram[256];
+  int degrees_out, minutes_times_100_out;
+  assert_equal_int(DATAGRAM_51_LENGTH, build_lon_position(datagram, degrees_in, minutes_times_100_in), "incorrect datagram length");
+  parse_lon_position(datagram, &degrees_out, &minutes_times_100_out);
+  CHECK_INT(degrees);
+  CHECK_INT(minutes_times_100);
+}
+
+TEST_DATAGRAM(51) // longitude
+  for (int i = -179; i < 180; i += 5) {
+    for (int j = 6000; j <= 6000; j += 37) {
+      assert_lon_position(i, j);
+    }
+  }
+}
+
+void assert_speed_over_ground(int knots_times_10_in) {
+  char datagram[256];
+  int knots_times_10_out;
+  assert_equal_int(DATAGRAM_52_LENGTH, build_speed_over_ground(datagram, knots_times_10_in), "incorrect datagram length");
+  parse_speed_over_ground(datagram, &knots_times_10_out);
+  CHECK_INT(knots_times_10);
+}
+
+TEST_DATAGRAM(52) // speed over ground
+  for (int i = 0; i <= 6500; i += 101) {
+    for (int j = 0; j <= 9; j++) {
+      assert_speed_over_ground((i * 10) + j);
+    }
+  }
+}
+
+void assert_course_over_ground(int degrees_in) {
+  char datagram[256];
+  int degrees_out;
+  assert_equal_int(DATAGRAM_53_LENGTH, build_course_over_ground(datagram, degrees_in), "incorrect datagram length");
+  parse_course_over_ground(datagram, &degrees_out);
+  CHECK_INT(degrees);
+}
+
+TEST_DATAGRAM(53) // course over ground
+  for (int i = 0; i < 360; i++) {
+    assert_course_over_ground(i);
+  }
 }
 
 TEST(parse_84)
@@ -23,7 +323,7 @@ TEST(parse_84)
   // no display instructions
   // 0x0f in final byte meaning unknown; signal copied from Autohelm 1000+
   struct AUTOPILOT_STATUS ap_status;
-  parse_seatalk_datagram("\x84\xc6\x07\x00\x00\x00\x00\x00\x0f");
+  handle_seatalk_datagram("\x84\xc6\x07\x00\x00\x00\x00\x00\x0f");
   get_autopilot_status(&ap_status);
   assert_equal_int(16, ap_status.compass_heading,
     "ap_status.compass_heading");
@@ -49,220 +349,7 @@ TEST(parse_9c)
   // 9c: compass heading and rudder position
   // sample message states compass 0 * 90 + 07 * 2 + 2 = 016
   // rudder position 00
-  parse_seatalk_datagram("\x9c\xc1\x07\x00");
-}
-
-TEST_BUILD(00)
-  // 00: depth below transducer
-  // note: limited to whole number feet due to kernel mode restrictions
-  //       on using floating point numbers
-  int length = build_depth_datagram(datagram, 1000, 0, 0, 0, 0);
-  assert_equal_int(5, length, "datagram should be 5 characters");
-  int xxxx = datagram[3] * 0x100 + datagram[4];
-  assert_equal_int(100, (int)(xxxx / 10), "depth should be reported as 100'");
-  length = build_depth_datagram(datagram, 1000, 1, 0, 0, 0);
-  int y;
-  y = first_nibble(datagram[2]);
-  assert(y & 0x8, "anchor alarm should be active");
-  length = build_depth_datagram(datagram, 1000, 0, 1, 0, 0);
-  y = first_nibble(datagram[2]);
-  assert(y & 0x4, "metric display should be active");
-  length = build_depth_datagram(datagram, 1000, 0, 0, 1, 0);
-  int z;
-  z = last_nibble(datagram[2]);
-  assert(z & 0x2, "deep water alarm should be active");
-  length = build_depth_datagram(datagram, 1000, 0, 0, 0, 1);
-  z = last_nibble(datagram[2]);
-  assert(z & 0x1, "shallow water alarm should be active");
-}
-
-TEST_BUILD(05)
-  // 05: engine RPM and pitch
-  int length = build_engine_rpm_datagram(datagram, 3400, 3, -1); // single engine
-  assert_equal_int(6, length, "datagram should be 6 characters");
-  int x,  yyzz, pp;
-  x = datagram[2];
-  yyzz = (datagram[3] << 8) | datagram[4];
-  pp = datagram[5];
-  assert_equal_int(0, x, "should be single-engine");
-  assert_equal_int(3400, yyzz, "reported RPM should be 3400");
-  assert_equal_int(3, pp, "reported pitch should be 3");
-  length = build_engine_rpm_datagram(datagram, 3400, 3, 0); // port engine
-  x = datagram[2];
-  assert_equal_int(2, x, "should be port engine");
-  length = build_engine_rpm_datagram(datagram, 3400, 3, 1); // starboard engine
-  x = datagram[2];
-  assert_equal_int(1, x, "should be starboard engine");
-  length = build_engine_rpm_datagram(datagram, -3400, -3, -1); // -ve rpm+pitch
-  yyzz = (datagram[3] << 8) | datagram[4];
-  pp = datagram[5];
-  if (yyzz >= 0x8000) {
-    yyzz -= 0x10000;
-  }
-  if (pp >= 0x80) {
-    pp -= 0x100;
-  }
-  assert_equal_int(-3400, yyzz, "reported RPM should be negative");
-  assert_equal_int(-3, pp, "reported pitch should be negative");
-}
-
-TEST_BUILD(10)
-  // 10 apparent wind angle
-  for (int i = -360; i <= 360; i++) {
-    int length = build_apparent_wind_angle_datagram(datagram, i);
-    assert_equal_int(length, 4, "datagram should be 4 characters");
-    int xxyy = (datagram[2] << 8) | datagram[3];;
-    if (xxyy >= 0x8000) {
-      xxyy -= 0x10000;
-    }
-    assert_equal_int((int)(i / 2), (int)(xxyy / 2), "apparent wind angle");
-  }
-}
-
-TEST_BUILD(11)
-  // 11 apparent wind speed
-  for (int i = 0; i <= 1279; i++) {
-    int length = build_apparent_wind_speed_datagram(datagram, i, 0);
-    assert_equal_int(4, length, "datagram should be 4 characters");
-    int xx = datagram[2] & 0x7f;
-    int y = last_nibble(datagram[3]);
-    assert_equal_float((float)i/10, (float)xx + y/10.0, "apparent wind speed");
-  }
-  int length = build_apparent_wind_speed_datagram(datagram, 5.5, 1);
-  int xx = datagram[2];
-  assert(xx & 0x80, "metric display flag should be set");
-}
-
-TEST_BUILD(20)
-  // 20 speed through water
-  for (int i = 0; i <= 9999; i++) {
-    int length = build_water_speed_datagram(datagram, i);
-    assert_equal_int(4, length, "datagram should be 4 characters");
-    int xxxx = (datagram[2] << 8) + datagram[3];
-    assert_equal_float((float)(i / 10.0), (float)(xxxx / 10.0), "water speed");
-  }
-}
-
-TEST_BUILD(21)
-  // 21 trip mileage
-  for (int i = 0; (i < 10000); i++) {
-    int length = build_trip_mileage_datagram(datagram, i);
-    assert_equal_int(5, length, "datagram should be 5 characters");
-    int xxxxx = datagram[2] << 12 | datagram[3] << 4 | datagram[4];
-    assert_equal_float((float)(i / 100.0), (float)(xxxxx / 100.0), "mileage");
-  }
-}
-
-TEST_BUILD(22)
-  // 22 total mileage
-  for (int i = 0; (i < 10000); i++) {
-    int length = build_total_mileage_datagram(datagram, i);
-    assert_equal_int(5, length, "datagram should be 5 characters");
-    int xxxx = datagram[2] << 8 | datagram[3];
-    assert_equal_float((float)(i / 10.0), (float)(xxxx / 10.0), "mileage");
-  }
-}
-
-TEST_BUILD(23)
-  // 23 water temperature
-  for (int i = 32; i <= 128; i++) {
-    int length = build_water_temperature_datagram(datagram, i);
-    assert_equal_int(4, length, "datagram should be 4 characters");
-    int xx = datagram[2];
-    int yy = datagram[3];
-    int z = first_nibble(datagram[1]);
-    assert_equal_int((int)(((i - 32) * 5) / 9), xx, "Celsius");
-    assert_equal_int(i, yy, "Fahrenheit");
-    assert_equal_int(0, z, "flags");
-  }
-}
-
-TEST_BUILD(24)
-  // 24 display units for mileage and speed
-  int length = build_distance_units_datagram(datagram, -1);
-  assert_equal_int(5, length, "datagram should be 5 characters");
-  int xx = datagram[4];
-  assert_equal_int(0x6, xx, "statute miles");
-  build_distance_units_datagram(datagram, 0);
-  xx = datagram[4];
-  assert_equal_int(0x0, xx, "nautical miles");
-  build_distance_units_datagram(datagram, 1);
-  xx = datagram[4];
-  assert_equal_int(0x86, xx, "km");
-}
-
-TEST_BUILD(25)
-  // 25 total and trip log
-  for (int i = 0; i < 1048575; i += 111) {
-    int length = build_total_and_trip_log_datagram(datagram, i, i);
-    assert_equal_int(7, length, "datagram should be 7 characters");
-    int xx, yy, z, uu, vv, w;
-    xx = datagram[2];
-    yy = datagram[3];
-    z = first_nibble(datagram[1]);
-    uu = datagram[4];
-    vv = datagram[5];
-    w = last_nibble(datagram[6]);
-    assert_equal_float((float)(i / 10.0), (float)(((z << 16) | (yy << 8) | xx) / 10.0), "total");
-    assert_equal_float((float)(i / 100.0), (float)(((w << 16) | (vv << 8) | uu) / 100.0), "trip");
-  }
-}
-
-TEST_BUILD(26)
-  // 26 average water speed
-  for (int i = 0; i <= 1000; i++) {
-    int length = build_average_water_speed_datagram(datagram, i, i, 1, 1, 0, 0);
-    assert_equal_int(7, length, "datagram should be 7 characters");
-    int xxxx = (datagram[2] << 8) | datagram[3];
-    int yyyy = (datagram[4] << 8) | datagram[5];
-    int d = first_nibble(datagram[6]);
-    int e = last_nibble(datagram[6]);
-    assert_equal_float((float)(i / 100.0), (float)(xxxx / 100.0), "current speed");
-    assert_equal_float((float)(i / 100.0), (float)(yyyy / 100.0), "average speed");
-    assert(d & 0x4, "current speed sensor");
-    assert(d & 0x8, "average speed sensor");
-    refute(e & 0x1, "stopped");
-    refute(e & 0x2, "display in statute miles");
-  }
-}
-TEST_BUILD(27)
-  // water temperature 2
-  for (int i = -100; i <= 155; i++) {
-    int length = build_water_temperature2_datagram(datagram, i);
-    assert_equal_int(4, length, "datagram should be 4 characters");
-    int xxxx = (datagram[2] << 8) | datagram[3];
-    assert_equal_float((float)(i / 10.0), (float)((xxxx - 100) / 10.0), "temperature");
-  }
-}
-
-TEST_BUILD(30)
-  // set lamp intensity
-  int length = build_set_lamp_intensity_datagram(datagram, 0);
-  assert_equal_int(3, length, "datagram should be 3 characters");
-  int x = datagram[2];
-  assert_equal_int(0x0, x, "level 0");
-  build_set_lamp_intensity_datagram(datagram, 1);
-  x = datagram[2];
-  assert_equal_int(0x4, x, "level 1");
-  build_set_lamp_intensity_datagram(datagram, 1);
-  x = datagram[2];
-  assert_equal_int(0x4, x, "level 2");
-  build_set_lamp_intensity_datagram(datagram, 2);
-  x = datagram[2];
-  assert_equal_int(0x8, x, "level 2");
-  for (int i = 3; i <= 6; i++) {
-    build_set_lamp_intensity_datagram(datagram, i);
-    x = datagram[2];
-    assert_equal_int(0xc, x, "level 3");
-  }
-}
-
-TEST_BUILD(36)
-  // cancel MOB
-  int length = build_cancel_mob_datagram(datagram);
-  assert_equal_int(3, length, "datagram should be 3 characters");
-  int x = datagram[2];
-  assert_equal_int(1, x, "should be 1");
+  handle_seatalk_datagram("\x9c\xc1\x07\x00");
 }
 
 TEST_BUILD(89)
@@ -284,21 +371,25 @@ TEST_BUILD(89)
 
 void test_seatalk_datagram() {
   printf("---Testing seatalk_datagram.c\n");
+  test_datagram_00();
+  test_datagram_05();
+  test_datagram_10();
+  test_datagram_11();
+  test_datagram_20();
+  test_datagram_21();
+  test_datagram_22();
+  test_datagram_23();
+  test_datagram_24();
+  test_datagram_25();
+  test_datagram_26();
+  test_datagram_27();
+  test_datagram_30();
+  // test_datagram_36(); // this datagram has no variability
+  test_datagram_50();
+  test_datagram_51();
+  test_datagram_52();
+  test_datagram_53();
   test_parse_84();
   test_parse_9c();
-  test_build_00();
-  test_build_05();
-  test_build_10();
-  test_build_11();
-  test_build_20();
-  test_build_21();
-  test_build_22();
-  test_build_23();
-  test_build_24();
-  test_build_25();
-  test_build_26();
-  test_build_27();
-  test_build_30();
-  test_build_36();
   test_build_89();
 }
