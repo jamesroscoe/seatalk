@@ -1,15 +1,9 @@
 #include "seatalk_transport_layer.h"
 #include "seatalk_hardware_layer.h"
-#include "seatalk_state.h"
+#include "seatalk_protocol.h"
 #include "seatalk_command.h"
 #include "seatalk_datagram.h"
-#ifdef TESTING
-  #include <stdio.h>
-  #define LOG printf
-#else
-  #include <linux/kernel.h>
-  #define LOG pr_info
-#endif
+#include "logger.h"
 
 #define IDLE_BITS 10
 
@@ -74,8 +68,7 @@ int seatalk_byte_received(char data_byte, int command_bit) {
   if (receive_datagram_bytes_remaining == 254) { // second character
     receive_datagram_bytes_remaining = get_datagram_length(data_byte); // datagram length
   } else if (!(receive_datagram_bytes_remaining)) {
-    LOG("update_seatalk_state()");
-    update_seatalk_state(receive_buffer);
+    handle_seatalk_datagram(receive_buffer);
   } else {
     receive_datagram_bytes_remaining -= 1;
   }

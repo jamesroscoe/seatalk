@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "defines.h"
 #include "test.h"
-#include "seatalk_transport_layer.h"
+#include "seatalk_transport_layer_test.h"
 #include "seatalk_hardware_layer.h"
 
 #include "../seatalk_transport_layer.c"
@@ -103,15 +103,15 @@ TEST(bus_returns_to_idle_state)
 }
 
 TEST(incomplete_datagram)
-  // send partial datagram and ensure autopilot status not updated
-  // send complete datagram and ensure autopilot status updated
-  struct AUTOPILOT_STATUS ap_status;
-  simulate_receive_datagram("\x84\xc6\x07\x00\x00\x00\x00\x00\x0f", 5);
-  assert(get_autopilot_status(&ap_status),
-    "get_ap_status should return non-zero for failure");
-  simulate_receive_datagram("\x84\xc6\x07\x00\x00\x00\x00\x00\x0f", 9);
-  assert(!get_autopilot_status(&ap_status),
-    "get_ap_status should pass with zero result");
+//  // send partial datagram and ensure autopilot status not updated
+//  // send complete datagram and ensure autopilot status updated
+//  struct AUTOPILOT_STATUS ap_status;
+//  simulate_receive_datagram("\x84\xc6\x07\x00\x00\x00\x00\x00\x0f", 5);
+//  assert(get_autopilot_status(&ap_status),
+//    "get_ap_status should return non-zero for failure");
+//  simulate_receive_datagram("\x84\xc6\x07\x00\x00\x00\x00\x00\x0f", 9);
+//  assert(!get_autopilot_status(&ap_status),
+//    "get_ap_status should pass with zero result");
 }
 
 TEST(initialize_seatalk_hardware_transmitter_sans_datagram)

@@ -1,0 +1,2 @@
+#define SENSOR_TIME_TO_LIVE 5
+#define STATUS_TIME_TO_LIVE 5

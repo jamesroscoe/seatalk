@@ -1,4 +1,4 @@
-#Open-source C library for handling two-way communication over Raymarine's SeaTalk protocol.
+# Open-source C library for handling two-way communication over Raymarine's SeaTalk protocol.
 
 This is not officially supported in any way, shape or form by anyone. *Use this at your own risk!*
 
@@ -6,7 +6,7 @@ This could not have been possible without Thomas Knauf's absolutely indispensibl
 
 This should be treated as a device driver. It can be linked into an application or it can be installed as a Linux kernel extension.
 
-##Using it within an application
+## Using it within an application
 
     #include "seatalk_state.h"
 
@@ -21,7 +21,7 @@ If using this under Linux you might want to consider using the kernel extension 
 
 If using this in a microcontroller you should be able to write your own MCU-specific seatalk_hardware_layer.c file to generate an interrupt when the start bit is received and to start the receive and transmit timers as needed.
 
-##Using the Linux kernel extension
+## Using the Linux kernel extension
 
 This has been tested on a Raspberry Pi. There is nothing in the source code that is obviously RPi-specific so in theory it should compile for any Linux machine that provides you with GPIO pins.
 

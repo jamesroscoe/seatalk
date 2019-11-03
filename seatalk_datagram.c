@@ -1,5 +1,5 @@
 #include "seatalk_datagram.h"
-#include "seatalk_state.h"
+#include "boat_status.h"
 
 #define INITIALIZE_DATAGRAM(DATAGRAM_NUMBER, HIGH_NIBBLE_OF_SECOND_BYTE) initialize_datagram(datagram, 0x##DATAGRAM_NUMBER, DATAGRAM_##DATAGRAM_NUMBER##_LENGTH, HIGH_NIBBLE_OF_SECOND_BYTE)
 
@@ -82,6 +82,10 @@ int two_bytes(char *datagram, int index) {
   return (byte1 << 8) | byte2;
 }
 
+int complement_checksum(int value) {
+  return value ^ 0xff;
+}
+
 int fix_twos_complement_char(int value) {
   if (value & 0x80) {
   return -1 * ((value ^ 0xff) + 1);
@@ -98,7 +102,7 @@ int fix_twos_complement_word(int value) {
   }
 }
 
-int flag(char flags, char mask) {
+int flag(int flags, int mask) {
   return (flags & mask) ? 1 : 0;
 }
 
@@ -122,6 +126,35 @@ void uvw_compass(int *u, int *vw, int compass) {
   *u |= (temp_compass * 2) << 2;
 }
 
+int uvw_heading_and_turning_direction(int heading, int turning_direction, int *u, int *vw) {
+  int temp_direction, odd;
+  temp_direction = heading;
+  odd = temp_direction % 2;
+  *u = turning_direction ? 0x8 : 0;
+  if (odd) {
+    if (*u & 0x8) {
+      // high bit of u adds 1 to heading so nothing to do
+    } else {
+      *u |= 0x4;
+    }
+  } else {
+    if (*u & 0x8) {
+      // high bit of u adds 1 to heading so need to reduce vw component
+      if (temp_direction == 0) {
+        temp_direction = 359;
+      } else {
+        temp_direction -= 1;
+      }
+      *u |= 0x4;
+    } else {
+      // heading reflected accurately with no extra from u
+    }
+  }
+  *u |= temp_direction / 90;
+  temp_direction = temp_direction % 90;
+  *vw = temp_direction / 2;
+}
+
 int alarm_is_active(int active_alarms, int alarm) {
   return (active_alarms & alarm) ? 0xffff : 0;
 }
@@ -134,8 +167,8 @@ int build_depth_below_transducer(char *datagram, int depth_in_feet_times_10, int
   // deep water alarm: z & 2
   // shallow water alarm: z & 1
   int xxxx = depth_in_feet_times_10;
-  int y = (alarm_is_active(active_alarms, ANCHOR_ALARM) & 0x8) | (display_in_metres ? 0x4 : 0x0);
-  int z = (alarm_is_active(active_alarms, DEEP_WATER_ALARM) & 0x2) | (alarm_is_active(active_alarms, SHALLOW_WATER_ALARM) & 0x1) | (transducer_defective ? 0x4 : 0);;
+  int y = (alarm_is_active(active_alarms, ALARM_ANCHOR) & 0x8) | (display_in_metres ? 0x4 : 0x0);
+  int z = (alarm_is_active(active_alarms, ALARM_DEEP_WATER) & 0x2) | (alarm_is_active(active_alarms, ALARM_SHALLOW_WATER) & 0x1) | (transducer_defective ? 0x4 : 0);;
   INITIALIZE_DATAGRAM(00, 0);
   datagram[2] = (y << 4) | z;
   datagram[3] = xxxx >> 8;
@@ -151,9 +184,9 @@ void parse_depth_below_transducer(char *datagram, int *depth_in_feet_times_10, i
   *depth_in_feet_times_10 = xxxx;
   *display_units = flag(y, 0x4);
   *active_alarms = 0;
-  *active_alarms |= flag(z, 0x1) ? SHALLOW_WATER_ALARM : 0;
-  *active_alarms |= flag(z, 0x2) ? DEEP_WATER_ALARM : 0;
-  *active_alarms |= flag(y, 0x8) ? ANCHOR_ALARM : 0;
+  *active_alarms |= flag(z, 0x1) ? ALARM_SHALLOW_WATER : 0;
+  *active_alarms |= flag(z, 0x2) ? ALARM_DEEP_WATER : 0;
+  *active_alarms |= flag(y, 0x8) ? ALARM_ANCHOR : 0;
   *transducer_defective = flag(z, 0x4);
 }
 
@@ -707,6 +740,22 @@ void update_course_over_ground(char *datagram) {
 //  set_course_over_ground(degrees);
 }
 
+int build_gmt_time(char *datagram, int hours, int minutes, int seconds) {
+  // 54, T1, RS, HH
+  // HH = hours
+  // 6 highest bits of RST = minutes = (RS & 0xfc) >> 2
+  // 6 lowest bits of RST = seconds = ST & 0x3f
+  int t, rs, hh;
+  hh = hours;
+  rs = minutes << 2;
+  rs |= seconds >> 4;
+  t = seconds & 0xf;
+  INITIALIZE_DATAGRAM(54, t);
+  datagram[2] = rs;
+  datagram[3] = hh;
+  return DATAGRAM_54_LENGTH;
+}
+
 void parse_gmt_time(char *datagram, int *hours, int *minutes, int *seconds) {
   int t, rs, hh;
   t = first_nibble(datagram[1]);
@@ -723,159 +772,24 @@ void update_gmt_time(char *datagram) {
 //  set_gmt_time(hours, minutes, seconds);
 }
 
-int parse_autopilot_remote_control_keystroke(char *datagram, int *button_1_value, int *button_2_value, int *pressed_longer, int *held_down, int *z101_remote, int *tiller_pilot) {
-  int x, yy, yy_comp;
-  x = first_nibble(datagram[1]);
-  yy = datagram[2];
-  yy_comp = datagram[3];
-  *button_1_value = 0;
-  *button_2_value = 0;
-  *pressed_longer = 0;
-  *held_down = 0;
-  *z101_remote = 0;
-  *tiller_pilot = 0;
-  if (yy != !yy_comp) {
-    return -1;
-  }
-  *pressed_longer = yy & 0x40;
-  if (x == 1) {
-    if ((yy & 0x20) == 0) {
-      switch (yy & 0x0f) {
-        case 0x05:
-          *button_1_value = -1;
-          break;
-        case 0x06:
-          *button_1_value = -10;
-          break;
-        case 0x07:
-          *button_1_value = 1;
-          break;
-        case 0x08:
-          *button_2_value = 10;
-          break;
-      }
-    } else {
-      switch (yy & 0x0f) {
-        case 0x20:
-          *button_1_value = -1;
-          *button_2_value = 1;
-          break;
-        case 0x21:
-          *button_1_value = -10;
-          *button_2_value = -1;
-          break;
-        case 0x22:
-          *button_1_value = 1;
-          *button_2_value = 10;
-          break;
-        case 0x24:
-        case 0x28:
-          *button_1_value = -10;
-          *button_2_value = 10;
-          break;
-      }
-    }
-    *z101_remote = 1;
-    return 0;
-  } else {
-    if (yy & 0x80) {
-      switch (yy) {
-        case 0x80:
-          *button_1_value = -1;
-          break;
-        case 0x81:
-          *button_1_value = 1;
-          break;
-        case 0x82:
-          *button_1_value = -10;
-          break;
-        case 0x83:
-          *button_1_value = 10;
-          break;
-        case 0x84: // released
-          *button_1_value = 0;
-          break;
-      }
-      *held_down = 1;
-    } else if ((yy & 0x20) == 0) {
-      switch (yy & 0x0f) {
-        case 0x01:
-          *button_1_value = 101; // auto
-          break;
-        case 0x02:
-          *button_1_value = 102; // standby
-          break;
-        case 0x03:
-          *button_1_value = 103; // track
-          break;
-        case 0x04:
-          *button_1_value = 104; // disp
-          break;
-        case 0x05:
-          *button_1_value = -1;
-          break;
-        case 0x06:
-          *button_1_value = -10;
-          break;
-        case 0x07:
-          *button_1_value = 1;
-          break;
-        case 0x08:
-          *button_1_value = 10;
-          break;
-      }
-    } else {
-      switch (yy & 0x0f) {
-        case 0x01:
-          *button_1_value = -10;
-          *button_2_value = -1;
-          break;
-        case 0x02:
-          *button_1_value = 1;
-          *button_2_value = 10;
-          break;
-        case 0x03:
-          *button_1_value = 101; // auto
-          *button_2_value = 102; // standby
-          break;
-        case 0x08:
-          *button_1_value = -10;
-          *button_2_value = 10;
-          break;
-        case 0x0e:
-          *button_1_value = -1;
-          *button_2_value = 1;
-          break;
-      }
-    }
-    *tiller_pilot = x == 0;
-    return 0;
-  }
-}
-
-void accept_autopilot_remote_control_keystroke(char *datagram) {
-//  int button_1_value, button_2_value, pressed_longer, held_down, z101_remote;
-//  if (parse_autopilot_remote_control_keystroke(datagram, &button_1_value, &button_2_value, &pressed_longer, &held_down, &z101_remote) == 0) {
-//    if (!(pressed_longer || held_down)) {
-//      if (button_2_value) { // single key pressed
-//        if (button_1_value < 100) { // direction command key pressed
-//          change_autopilot_heading(button_1_value);
-//        } else {
-//          switch (button_1_value) {
-//            case 101: // auto
-//              set_autopilot_mode(
-//      }
-//      if (button_1_value && button_2_value) { // key combination
-//      }
-//    }
-//  }
+int build_date(char *datagram, int year, int month, int day) {
+  // 56 M1 DD YY
+  // YY year M month D day of month
+  int yy, m, dd;
+  yy = year - 1970; // arbitrary epoch offset until real data available
+  m = month;
+  dd = day;
+  INITIALIZE_DATAGRAM(56, m);
+  datagram[2] = dd;
+  datagram[3] = yy;
+  return DATAGRAM_56_LENGTH;
 }
 
 void parse_date(char *datagram, int *year, int *month, int *day) {
   int m, dd, yy;
   m = first_nibble(datagram[1]);
   dd = datagram[2];
-  yy = datagram[3];
+  yy = datagram[3] + 1970; // arbitrary epoch offset until real data available
   *year = yy;
   *month = m;
   *day = dd;
@@ -885,6 +799,22 @@ void update_date(char *datagram) {
   int year, month, day;
   parse_date(datagram, &year, &month, &day);
 //  set_date(year, month, day);
+}
+
+int build_satellite_info(char *datagram, int satellite_count, int horizontal_dilution_of_position) {
+  // 58 z5 la xx yy lo qq rr
+  // lat/lon position
+  // la, lo degrees latitude, longitude
+  // minutes lat xxyy/1000
+  // minutes lon qqrr/1000
+  // z: south if z&1
+  //    east if z&2
+  int s, dd;
+  s = satellite_count;
+  dd = horizontal_dilution_of_position;
+  INITIALIZE_DATAGRAM(57, s);
+  datagram[2] = dd;
+  return DATAGRAM_57_LENGTH;
 }
 
 void parse_satellite_info(char *datagram, int *satellite_count, int *horizontal_dilution_of_position) {
@@ -901,26 +831,88 @@ void update_satellite_info(char *datagram) {
 //  set_satellite_info(satellite_count, horizontal_dilution_of_position);
 }
 
-void parse_lat_lon_position(char *datagram, int *degrees_lat, int *minutes_lat_times_1000, int *degrees_lon, int *minutes_lon_times_1000) {
+int build_lat_lon_position(char *datagram, int north, int degrees_lat, int minutes_lat_times_1000, int west, int degrees_lon, int minutes_lon_times_1000) {
+  int z, la, xx, yy, lo, qq, rr;
+  z = 0;
+  if (north == 0) {
+    z |= 0x1;
+  }
+  la = degrees_lat;
+  xx = minutes_lat_times_1000 >> 8;
+  yy = minutes_lat_times_1000 & 0xff;
+  if (west == 0) {
+    z |= 0x02;
+  }
+  lo = degrees_lon;
+  qq = minutes_lon_times_1000 >> 8;
+  rr = minutes_lon_times_1000 & 0xff;
+  INITIALIZE_DATAGRAM(58, z);
+  datagram[2] = la;
+  datagram[3] = xx;
+  datagram[4] = yy;
+  datagram[5] = lo;
+  datagram[6] = qq;
+  datagram[7] = rr;
+  return DATAGRAM_58_LENGTH;
+}
+
+void parse_lat_lon_position(char *datagram, int *north, int *degrees_lat, int *minutes_lat_times_1000, int *west, int *degrees_lon, int *minutes_lon_times_1000) {
   int z, la, xxyy, lo, qqrr;
   z = first_nibble(datagram[1]);
   la = datagram[2];
   xxyy = two_bytes(datagram, 3);
   lo = datagram[5];
   qqrr = two_bytes(datagram, 6);
-  *degrees_lat = (z & 0x1 ? -1 : 1) * la;
+  *north = flag(z, 0x1) ? 0 : 1;
+  *degrees_lat = la;
   *minutes_lat_times_1000 = xxyy;
-  *degrees_lon = (z & 0x2 ? -1 : 1) * lo;
+  *west = flag(z, 0x2) ? 0 : 1;
+  *degrees_lon = lo;
   *minutes_lon_times_1000 = qqrr;
 }
 
 void update_lat_lon_position(char *datagram) {
-  int lat, minutes_lat_times_1000, lon, minutes_lon_times_1000;
-  parse_lat_lon_position(datagram, &lat, &minutes_lat_times_1000, &lon, &minutes_lon_times_1000);
+  int north, lat, minutes_lat_times_1000, west, lon, minutes_lon_times_1000;
+  parse_lat_lon_position(datagram, &north, &lat, &minutes_lat_times_1000, &west, &lon, &minutes_lon_times_1000);
 //  set_lat_lon_position(lat, minutes_lat_times_1000, lon, minutes_lon_times_1000);
 }
 
-void parse_set_countdown_timer(char *datagram, int *hours, int *minutes, int *seconds, int *mode) {
+int build_countdown_timer(char *datagram, int hours, int minutes, int seconds, enum TIMER_MODE mode) {
+  // 59 22 ss mm xh
+  // set countdown timer
+  // mm minutes, ss seconds, h hours
+  // msb mm count up start flag
+  // x: counter mode
+  // 0 = count up and start
+  // 4 = count down
+  // 8 = count down and start
+  int ss, mm, x, h;
+  h = hours;
+  mm = minutes;
+  ss = seconds;
+  switch (mode) {
+    case TIMER_MODE_COUNT_UP:
+      x = 0;
+      break;
+    case TIMER_MODE_COUNT_DOWN:
+      x = 4;
+      break;
+    case TIMER_MODE_COUNT_UP_AND_START:
+      x = 0;
+      mm |= 0x80;
+      break;
+    case TIMER_MODE_COUNT_DOWN_AND_START:
+      x = 8;
+      break;
+  }
+  INITIALIZE_DATAGRAM(59, 2);
+  datagram[2] = ss;
+  datagram[3] = mm;
+  datagram[4] = (x << 4) | h;
+  return DATAGRAM_59_LENGTH;
+}
+
+void parse_countdown_timer(char *datagram, int *hours, int *minutes, int *seconds, enum TIMER_MODE *mode) {
   int ss, mm, x, h;
   ss = datagram[2];
   mm = datagram[3];
@@ -931,100 +923,166 @@ void parse_set_countdown_timer(char *datagram, int *hours, int *minutes, int *se
   *seconds = ss;
   if (x == 0) {
     if (mm & 0x80) {
-      *mode = 1;
+      *mode = TIMER_MODE_COUNT_UP_AND_START;
     } else {
-      *mode = 0;
+      *mode = TIMER_MODE_COUNT_UP;
     }
   } else if (x == 4) {
-    *mode = 2;
+    *mode = TIMER_MODE_COUNT_DOWN;
   } else if (x == 8) {
-    *mode = 3;
+    *mode = TIMER_MODE_COUNT_DOWN_AND_START;
   }
 }
 
-void accept_set_countdown_timer(char *datagram) {
-  int hours, minutes, seconds, mode;
-  parse_set_countdown_timer(datagram, &hours, &minutes, &seconds, &mode);
+void update_countdown_timer(char *datagram) {
+  int hours, minutes, seconds;
+  enum TIMER_MODE mode;
+  parse_countdown_timer(datagram, &hours, &minutes, &seconds, &mode);
 //  set_countdown_timer(hours, minutes, seconds, mode);
 }
 
-void parse_wind_alarm(char *datagram, int *true_wind, int *angle_low, int *angle_high, int *speed_low, int *speed_high) {
+int build_wind_alarm(char *datagram, int active_alarms) {
+  // 66 00 xy
+  // x: apparent wind alarm; y: true wind
+  // bits: & 0x8 angle low, 0x4 angle high, 0x2 speed low, 0x1 speed high
+  // xy = 0: end all wind alarms
+  int x, y;
+  x = 0;
+  y = 0;
+  x |= alarm_is_active(active_alarms, ALARM_APPARENT_WIND_ANGLE_LOW) & 0x8;
+  x |= alarm_is_active(active_alarms, ALARM_APPARENT_WIND_ANGLE_HIGH) & 0x4;
+  x |= alarm_is_active(active_alarms, ALARM_APPARENT_WIND_SPEED_LOW) & 0x2;
+  x |= alarm_is_active(active_alarms, ALARM_APPARENT_WIND_SPEED_HIGH) & 0x1;
+  y |= alarm_is_active(active_alarms, ALARM_TRUE_WIND_ANGLE_LOW) & 0x8;
+  y |= alarm_is_active(active_alarms, ALARM_TRUE_WIND_ANGLE_HIGH) & 0x4;
+  y |= alarm_is_active(active_alarms, ALARM_TRUE_WIND_SPEED_LOW) & 0x2;
+  y |= alarm_is_active(active_alarms, ALARM_TRUE_WIND_SPEED_HIGH) & 0x1;
+  INITIALIZE_DATAGRAM(66, 0);
+  datagram[2] = (x << 4) | y;
+  return DATAGRAM_66_LENGTH;
+}
+
+void parse_wind_alarm(char *datagram, int *active_alarms) {
   int x, y;
   x = first_nibble(datagram[2]);
   y = last_nibble(datagram[2]);
-  *true_wind = x != 0;
-  *angle_low = ((x | y) & 0x8) != 0;
-  *angle_high = ((x | y) & 0x4) != 0;
-  *speed_low = ((x | y) & 0x2) != 0;
-  *speed_high = ((x | y) & 0x1) != 0;
+  *active_alarms = 0;
+  *active_alarms |= flag(x, 0x8) ? ALARM_APPARENT_WIND_ANGLE_LOW : 0;
+  *active_alarms |= flag(x, 0x4) ? ALARM_APPARENT_WIND_ANGLE_HIGH : 0;
+  *active_alarms |= flag(x, 0x2) ? ALARM_APPARENT_WIND_SPEED_LOW : 0;
+  *active_alarms |= flag(x, 0x1) ? ALARM_APPARENT_WIND_SPEED_HIGH : 0;
+  *active_alarms |= flag(y, 0x8) ? ALARM_TRUE_WIND_ANGLE_LOW : 0;
+  *active_alarms |= flag(y, 0x4) ? ALARM_TRUE_WIND_ANGLE_HIGH : 0;
+  *active_alarms |= flag(y, 0x2) ? ALARM_TRUE_WIND_SPEED_LOW : 0;
+  *active_alarms |= flag(y, 0x1) ? ALARM_TRUE_WIND_SPEED_HIGH : 0;
 }
 
 void update_wind_alarm(char *datagram) {
-  int true_wind, angle_low, angle_high, speed_low, speed_high;
-  parse_wind_alarm(datagram, &true_wind, &angle_low, &angle_high, &speed_low, &speed_high);
+  int active_alarms;
+  parse_wind_alarm(datagram, &active_alarms);
 //  set_wind_alarm(true_wind, angle_low, angle_high, speed_low, speed_high);
 }
 
-void parse_alarm_acknowledgement(char *datagram, int *shallow_water, int *deep_water, int *anchor, int *true_wind_high, int *true_wind_low, int *true_wind_angle_high, int *true_wind_angle_low, int *apparent_wind_high, int *apparent_wind_low, int *apparent_wind_angle_high, int *apparent_wind_angle_low) {
+int build_alarm_acknowledgement(char *datagram, int acknowledged_alarm) {
+  // 68 x1 yy 00
+  // yy indicates which device acknowledged. Hard-coding to 01 here.
+  // x: 1-shallow water; 2-deep water; 3-anchor; 4-true wind speed high;
+  //    5-true wind speed low; 6-true wind angle high; 7-true wind angle low
+  //    8-apparent wind speed high; 9-apparent wind speed low;
+  //    a-apparent wind angle high; b-apparent wind angle low
+  int x;
+  switch(acknowledged_alarm) {
+    case ALARM_SHALLOW_WATER:
+      x = 1;
+      break;
+    case ALARM_DEEP_WATER:
+      x = 2;
+      break;
+    case ALARM_ANCHOR:
+      x = 3;
+      break;
+    case ALARM_TRUE_WIND_SPEED_HIGH:
+      x = 4;
+      break;
+    case ALARM_TRUE_WIND_SPEED_LOW:
+      x = 5;
+      break;
+    case ALARM_TRUE_WIND_ANGLE_HIGH:
+      x = 6;
+      break;
+    case ALARM_TRUE_WIND_ANGLE_LOW:
+      x = 7;
+      break;
+    case ALARM_APPARENT_WIND_SPEED_HIGH:
+      x = 8;
+      break;
+    case ALARM_APPARENT_WIND_SPEED_LOW:
+      x = 9;
+      break;
+    case ALARM_APPARENT_WIND_ANGLE_HIGH:
+      x = 0xa;
+      break;
+    case ALARM_APPARENT_WIND_ANGLE_LOW:
+      x = 0xb;
+      break;
+    default:
+      x = 0;
+  }
+  INITIALIZE_DATAGRAM(68, x);
+  datagram[2] = 1;
+  return DATAGRAM_68_LENGTH;
+}
+
+void parse_alarm_acknowledgement(char *datagram, int *acknowledged_alarm) {
   int x;
   int y;
   int all;
   x = first_nibble(datagram[1]);
   y = datagram[2];
-  all = y == 0x15;
-  *shallow_water = all;
-  *deep_water = all;
-  *anchor = all;
-  *true_wind_high = all;
-  *true_wind_low = all;
-  *true_wind_angle_high = all;
-  *true_wind_angle_low = all;
-  *apparent_wind_high = all;
-  *apparent_wind_low = all;
-  *apparent_wind_angle_high = all;
-  *apparent_wind_angle_low = all;
-  if (!all) {
+  if (y == 0x15) {
+    *acknowledged_alarm = 0xffff;
+  } else {
     switch (x) {
       case 1:
-        *shallow_water = 1;
+        *acknowledged_alarm = ALARM_SHALLOW_WATER;;
         break;
       case 2:
-        *deep_water = 1;
+        *acknowledged_alarm = ALARM_DEEP_WATER;
         break;
       case 3:
-        *anchor = 1;
+        *acknowledged_alarm = ALARM_ANCHOR;
         break;
       case 4:
-        *true_wind_high = 1;
+        *acknowledged_alarm = ALARM_TRUE_WIND_SPEED_HIGH;
         break;
       case 5:
-        *true_wind_low = 1;
+        *acknowledged_alarm = ALARM_TRUE_WIND_SPEED_LOW;;
         break;
       case 6:
-        *true_wind_angle_high = 1;
+        *acknowledged_alarm = ALARM_TRUE_WIND_ANGLE_HIGH;
         break;
       case 7:
-        *true_wind_angle_low = 1;
+        *acknowledged_alarm = ALARM_TRUE_WIND_ANGLE_LOW;;
         break;
       case 8:
-        *apparent_wind_high = 1;
+        *acknowledged_alarm = ALARM_APPARENT_WIND_SPEED_HIGH;
         break;
       case 9:
-        *apparent_wind_low = 1;
+        *acknowledged_alarm = ALARM_APPARENT_WIND_SPEED_LOW;
         break;
       case 10:
-        *apparent_wind_angle_high = 1;
+        *acknowledged_alarm = ALARM_APPARENT_WIND_ANGLE_HIGH;
         break;
       case 11:
-        *apparent_wind_angle_low = 1;
+        *acknowledged_alarm = ALARM_APPARENT_WIND_ANGLE_LOW;
         break;
     }
   }
 }
 
 void accept_alarm_acknowledgement(char *datagram) {
-  int shallow_water, deep_water, anchor, true_wind_high, true_wind_low, true_wind_angle_high, true_wind_angle_low, apparent_wind_high, apparent_wind_low, apparent_wind_angle_high, apparent_wind_angle_low;
-  parse_alarm_acknowledgement(datagram, &shallow_water, &deep_water, &anchor, &true_wind_high, &true_wind_low, &true_wind_angle_high, &true_wind_angle_low, &apparent_wind_high, &apparent_wind_low, &apparent_wind_angle_high, &apparent_wind_angle_low);
+  int acknowledged_alarm;
+  parse_alarm_acknowledgement(datagram, &acknowledged_alarm);
 //  cancel_alarm(shallow_water, deep_water, anchor, true_wind_high, true_wind_low, true_wind_angle_high, true_wind_angle_low, apparent_wind_high, apparent_wind_low, apparent_wind_angle_high, apparent_wind_angle_low);
 }
 
@@ -1048,6 +1106,36 @@ void parse_maxview_keystroke(char *datagram, int *key_1, int *key_2, int *held_l
 void accept_maxview_keystroke(char *datagram) {
 }
 
+int build_target_waypoint_name(char *datagram, int char1, int char2, int char3, int char4) {
+  // 82 05 xx !xx yy !yy zz !zz
+  // !<> means reverse bits so xx + !xx = 0xff
+  // last 4 chars of wpt name, upper case only; use 6 bits per char
+  // subtract 0x30 from character values before applying bit masks and shifts
+  // xx = six bits of char1 with high bits taken from lowest two of char2
+  // yy = low four bits of char2 with high nibble from low nibble of char3
+  // zz = high two bits of char3 and 6 high bits come from char4
+  int xx, xx_comp, yy, yy_comp, zz, zz_comp;
+  int c1, c2, c3, c4;
+  c1 = char1 - 0x30;
+  c2 = char2 - 0x30;
+  c3 = char3 - 0x30;
+  c4 = char4 - 0x30;
+  xx = (c1 & 0x3f) | ((c2 & 0x3) << 6);
+  xx_comp = complement_checksum(xx);
+  yy = (c2 >> 2) | ((c3 & 0xf) << 4);
+  yy_comp = complement_checksum(yy);
+  zz = ((c3 & 0x3c) >> 4) | (c4 << 2);
+  zz_comp = complement_checksum(zz);
+  INITIALIZE_DATAGRAM(82, 0);
+  datagram[2] = xx;
+  datagram[3] = xx_comp;
+  datagram[4] = yy;
+  datagram[5] = yy_comp;
+  datagram[6] = zz;
+  datagram[7] = zz_comp;
+  return DATAGRAM_82_LENGTH;
+}
+
 int parse_target_waypoint_name(char *datagram, int *char_1, int *char_2, int *char_3, int *char_4) {
   int xx, xx_comp, yy, yy_comp, zz, zz_comp;
   xx = datagram[2];
@@ -1060,10 +1148,10 @@ int parse_target_waypoint_name(char *datagram, int *char_1, int *char_2, int *ch
     // transmission error detected
     return -1;
   }
-  *char_1 = 0x30 + xx & 0x3f;
-  *char_2 = 0x30 + (yy & 0xf) << 2 + (xx & 0xc0) >> 6;
-  *char_3 = 0x30 + (zz & 0x3) << 4 + (yy & 0xf0) >> 4;
-  *char_4 = 0x30 + (zz & 0xfc) >> 2;
+  *char_1 = 0x30 + (xx & 0x3f);
+  *char_2 = 0x30 + ((yy & 0xf) << 2) | ((xx & 0xc0) >> 6);
+  *char_3 = 0x30 + ((zz & 0x3) << 4) | ((yy & 0xf0) >> 4);
+  *char_4 = 0x30 + ((zz & 0xfc) >> 2);
   return 0;
 }
 
@@ -1080,29 +1168,91 @@ void update_target_waypoint_name(char *datagram) {
   }
 }
 
-void parse_course_computer_failure(char *datagram, int *failure_type) {
+int build_course_computer_failure(char *datagram, enum COURSE_COMPUTER_FAILURE_TYPE failure_type) {
+  // 83 07 xx 00 00 00 00 00 80 00 00
+  // course compuer failure
+  // xx 0: sent after clearing failure and on power-up
+  // xx 1 failure, auto release error. Repeated every second
+  // xx 8 failure, drive stopped
+  int xx;
+  switch (failure_type) {
+    case COURSE_COMPUTER_FAILURE_TYPE_AUTO_RELEASE_ERROR:
+      xx = 1;
+      break;
+    case COURSE_COMPUTER_FAILURE_TYPE_DRIVE_STOPPED:
+      xx = 8;
+      break;
+    default:
+      xx = 0;
+  }
+  INITIALIZE_DATAGRAM(83, 0);
+  datagram[2] = xx;
+  return DATAGRAM_83_LENGTH;
+}
+
+void parse_course_computer_failure(char *datagram, enum COURSE_COMPUTER_FAILURE_TYPE *failure_type) {
   int xx;
   xx = datagram[2];
   switch (xx) {
     case 0:
-      *failure_type = 0;
+      *failure_type = COURSE_COMPUTER_FAILURE_TYPE_NONE;
       break;
     case 1:
-      *failure_type = 1;
+      *failure_type = COURSE_COMPUTER_FAILURE_TYPE_AUTO_RELEASE_ERROR;
       break;
-    case 2:
-      *failure_type = 2;
+    case 8:
+      *failure_type = COURSE_COMPUTER_FAILURE_TYPE_DRIVE_STOPPED;
       break;
   }
 }
 
 void update_course_computer_failure(char *datagram) {
-  int failure_type;
+  enum COURSE_COMPUTER_FAILURE_TYPE failure_type;
   parse_course_computer_failure(datagram, &failure_type);
 //  set_course_computer_failure_type(failure_type);
 }
 
-void parse_autopilot_status(char *datagram, int *compass_heading, int *turning_direction, int *target_heading, int *mode, int *off_course_alarm, int *wind_shift_alarm, int *rudder_position, int *heading_display_off, int *no_data, int *large_xte, int *auto_rel) {
+int build_autopilot_status(char *datagram, int compass_heading, int turning_direction, int target_heading, enum AUTOPILOT_MODE mode, int rudder_position, int alarms, int display_flags) {
+  // 84 u6 vw xy 0z 0m rr ss tt
+  // compass heading: (u & 0x3) * 90 + (vw & 0x3f) * 2 + (u & 0xc ? ((u & 0xc) == 0xc ? 2 : 1) : 0)
+  // turning direction: msb of u; 1 right, 0 left
+  // autopilot target course: high 2 bits of v * 90 + xy/2
+  // mode: z & 0x2 = 0: standby; & 0x2 = 1: auto; &0x4 = vane; &0x8 = track
+  // alarms: m & 4: off course; m & 8 wind shift
+  // rudder position in degrees; positive numbers steer right
+  // ss = display; 0x1 turn of heading display; 0x2: always on; 0x8: "no data"
+  //      0x10 "large xte"; 0x80: "auto rel"
+  // tt: 400G computer always 0x08; 150(G) computer always 0x05
+  int u, vw, xy, z, m, rr, ss, tt;
+  int temp_direction;
+  uvw_heading_and_turning_direction(compass_heading, turning_direction, &u, &vw);
+  temp_direction = target_heading;
+  vw |= (temp_direction / 90) << 6;
+  xy = (temp_direction % 90) << 1;
+  z = mode;
+  rr = rudder_position;
+  m = 0;
+  if (flag(alarms, ALARM_AUTOPILOT_OFF_COURSE)) {
+    m |= 0x04;
+  }
+  if (flag(alarms, ALARM_AUTOPILOT_WIND_SHIFT)) {
+    m |= 0x08;
+  }
+  ss = 0;
+  ss = display_flags;
+  tt = 0;
+  INITIALIZE_DATAGRAM(84, u);
+  datagram[2] = vw;
+  datagram[3] = xy;
+  datagram[4] = z;
+  datagram[5] = m;
+  datagram[6] = rr;
+  datagram[7] = ss;
+  datagram[8] = tt;
+  return DATAGRAM_84_LENGTH;
+}
+
+void parse_autopilot_status(char *datagram, int *compass_heading, int *turning_direction, int *target_heading, enum AUTOPILOT_MODE *mode, int *rudder_position, int *alarms, int *display_flags) {
   char u, vw, xy, z, m, rr, ss, tt;
 
   // printf("parse_autopilot_status\n");
@@ -1116,39 +1266,79 @@ void parse_autopilot_status(char *datagram, int *compass_heading, int *turning_d
   tt = datagram[8];
 
   *compass_heading = ((u & 0x03) * 90) + ((vw & 0x3f) * 2) + ((u & 0x0c) ? (((u & 0x0c) == 0x0c) ? 2 : 1) : 0);
-  *turning_direction = (u & 0x08) ? 1 : -1;
-  *target_heading = (((vw & 0xc0) >> 5) * 90) + (xy / 2);
-  if ((z & 0x02) == 0) {
-    *mode = 0;
-  } else if (z & 0x02) {
-    *mode = 1;
-  } else if (z & 0x04) {
-    *mode = 2;
-  } else {
-    *mode = 3;
-  }
-  *off_course_alarm = flag(m, 0x04);
-  *wind_shift_alarm = flag(m, 0x08);
-  if (rr & 0xf0) {
-    *rudder_position = -(!rr + 1);
-  } else {
-    *rudder_position = rr;
-  }
-  *heading_display_off = flag(ss, 0x01);
-  *no_data = flag(ss, 0x08);
-  *large_xte = flag(ss, 0x10);
-  *auto_rel = flag(ss, 0x80);
+  *turning_direction = flag(u, 0x08);
+  *target_heading = (((vw & 0xc0) >> 6) * 90) + (xy / 2);
+  *mode = z;
+  *rudder_position = fix_twos_complement_char(rr);
+  *alarms = 0;
+  *alarms |= flag(m, 0x04) ? ALARM_AUTOPILOT_OFF_COURSE : 0;
+  *alarms |= flag(m, 0x08) ? ALARM_AUTOPILOT_WIND_SHIFT : 0;
+  *display_flags = ss;
 }
 
 void update_autopilot_status(char *datagram) {
-  int compass_heading, turning_direction, target_heading, mode, off_course_alarm, wind_shift_alarm, rudder_position, heading_display_off, no_data, large_xte, auto_rel;
-  parse_autopilot_status(datagram, &compass_heading, &turning_direction, &target_heading, &mode, &off_course_alarm, &wind_shift_alarm, &rudder_position, &heading_display_off, &no_data, &large_xte, &auto_rel);
+  int compass_heading, turning_direction, target_heading, alarms, rudder_position, display_flags;
+  enum AUTOPILOT_MODE mode;
+  parse_autopilot_status(datagram, &compass_heading, &turning_direction, &target_heading, &mode, &alarms, &rudder_position, &display_flags);
 //  set_autopilot_status(compass_heading, turning_direction, target_heading, mode, off_course_alarm, wind_shift_alarm, rudder_position, heading_display_off, no_data, large_xte, auto_rel);
 }
 
-int parse_waypoint_navigation(char *datagram, int *cross_track_times_100, int *waypoint_bearing, int *waypoint_distance, int *waypoint_distance_factor, int *direction_to_steer, int *xte_present, int *waypoint_bearing_present, int *waypoint_distance_present, int *large_xte) {
+int build_waypoint_navigation(char *datagram, int cross_track_error_present, int cross_track_error_times_100, int waypoint_bearing_present, int waypoint_bearing, int bearing_is_magnetic, int waypoint_distance_present, int waypoint_distance_times_100, int direction_to_steer) {
+  // 85 x6 xx vu zw zz yf 00 !yf
+  // cross track error = xxx/100
+  // bearing to destination (u & 0x3) * 90 + (wv / 2)
+  // u & 8: 8 bearing is true/0 bearing is magnetic
+  // distance 0-9.99nm zzz/100, y & 1 = 1/>= 10.0 nm zzz/10, y & 1 = 0
+  // direction to steer y & 4 = 4: right, y & 4 = 0: left
+  // f = flags: 1->XTE present; 2->bearing to waypoint present;
+  //   4->range to destination present; 8->xte>0.3nm
+  // !yf: bit complement of yf
+  int x, xx, v, u, z, w, zz, y, f, yf_comp;
+  int temp_value;
+  x = cross_track_error_times_100 >> 8 & 0xf;
+  xx = cross_track_error_times_100 & 0xff;
+  temp_value = waypoint_bearing;
+  u = temp_value / 90;
+  temp_value = (temp_value % 90) << 1;
+  w = temp_value >> 4;
+  v = temp_value & 0xf;
+  u |= bearing_is_magnetic ? 0 : 0x8;
+  y = waypoint_distance_times_100 < 1000 ? 1 : 0;
+  y |= (direction_to_steer > 0) ? 0x4 : 0;
+  if (y & 0x1) {
+    temp_value = waypoint_distance_times_100 / 10;
+  } else {
+    temp_value = waypoint_distance_times_100;
+  }
+  z = temp_value >> 8;
+  zz = temp_value & 0xff;
+  f = 0;
+  if (cross_track_error_present) {
+    f |= 0x1;
+  }
+  if (waypoint_bearing_present) {
+    f |= 0x2;
+  }
+  if (waypoint_distance_present) {
+    f |= 0x4;
+  }
+  if (cross_track_error_times_100 >= 30) {
+    f |= 0x8;
+  }
+  INITIALIZE_DATAGRAM(85, x);
+  datagram[2] = xx;
+  datagram[3] = (v << 4) | u;
+  datagram[4] = (z << 4) | w;
+  datagram[5] = zz;
+  datagram[6] = (y << 4) | f;
+  datagram[7] = 0;
+  datagram[8] = complement_checksum(datagram[6]);
+  return DATAGRAM_85_LENGTH;
+}
+
+int parse_waypoint_navigation(char *datagram, int *cross_track_error_present, int *cross_track_error_times_100, int *waypoint_bearing_present, int *waypoint_bearing, int *bearing_is_magnetic, int *waypoint_distance_present, int *waypoint_distance_times_100, int *direction_to_steer) {
   int x, xx, v, u, z, w, zz, yf, yf_comp;
-  int y, f;
+  int y, f, waypoint_distance_factor;
   x = first_nibble(datagram[1]);
   xx = datagram[2];
   v = first_nibble(datagram[3]);
@@ -1158,41 +1348,105 @@ int parse_waypoint_navigation(char *datagram, int *cross_track_times_100, int *w
   zz = datagram[5];
   yf = datagram[6];
   yf_comp = datagram[8];
-  if (yf != !yf_comp) {
+  if ((yf | yf_comp) != 0xff) {
     return -1;
   }
   y = first_nibble(yf);
   f = last_nibble(yf);
-  *cross_track_times_100 = x << 8 + xx;
-  *waypoint_bearing = ((u & 0x3) * 90) + ((v << 4 + w) > 1);
-  *waypoint_distance_factor = (y & 0x1) ? 100 : 10;
-  *waypoint_distance = z << 8 + zz;
-  *direction_to_steer = (y & 4) ? 1 : -1;
-  *xte_present = (f & 0x1) ? 1 : 0;
-  *waypoint_bearing_present = (f & 0x2) ? 1 : 0;
-  *waypoint_distance_present = (f & 0x4) ? 1 : 0;
-  *large_xte = (f & 0x8) ? 1 : 0;
+  *cross_track_error_times_100 = (x << 8) + xx;
+  *waypoint_bearing = ((u & 0x3) * 90) + (((w << 4) + v) >> 1);
+  *bearing_is_magnetic = flag(u, 0x8) ? 0 : 1;
+  *waypoint_distance_times_100 = ((z << 8) + zz) * (y & 0x1) ? 1 : 10;
+  *direction_to_steer = flag(y, 0x4) ? 1 : -1;
+  *cross_track_error_present = flag(f, 0x1);
+  *waypoint_bearing_present = flag(f, 0x2);
+  *waypoint_distance_present = flag(f, 0x4);
   return 0;
 }
 
 void update_waypoint_navigation(char *datagram) {
-  int cross_track_times_100, waypoint_bearing, waypoint_distance, waypoint_distance_factor, direction_to_steer, xte_present, waypoint_bearing_present, waypoint_distance_present, large_xte;
-  if (parse_waypoint_navigation(datagram, &cross_track_times_100, &waypoint_bearing, &waypoint_distance, &waypoint_distance_factor, &direction_to_steer, &xte_present, &waypoint_bearing_present, &waypoint_distance_present, &large_xte) == 0) {
-  }
-  if (waypoint_distance_factor = 10) {
-    waypoint_distance = waypoint_distance * 10;
+  int cross_track_error_present, cross_track_error_times_100, waypoint_bearing_present, waypoint_bearing, bearing_is_magnetic, waypoint_distance_present, waypoint_distance_times_100, direction_to_steer;
+  if (parse_waypoint_navigation(datagram, &cross_track_error_present, &cross_track_error_times_100, &waypoint_bearing_present, &waypoint_bearing, &bearing_is_magnetic, &waypoint_distance_present, &waypoint_distance_times_100, &direction_to_steer) != 0) {
+    return;
   }
 //  set_waypoint_navigation(waypoint_bearing, waypoint_distance, direction_to_steer, xte_present, waypoint_bearing_present, waypoint_distance_present, large_xte);
 }
 
-void parse_set_autopilot_response_level(char *datagram, int *response_level) {
+int build_autopilot_command(char *datagram, enum ST_AUTOPILOT_COMMAND command) {
+  // 86 x1 yy !yy
+  // x = 1 for Z101 remote, 0 for ST1000+, x=2 for ST4000+ or ST600B
+  // yy = command; !yy = yy bit complement for checksum
+  // z101 commands (only sent by other remots in auto mode):
+  // 05: -1; 06: -10; 07: +1; 08: +10; 20: +1&-1; 21: -1&-10; 22: +1&+10
+  // 28: +10&-10; above | 0x40: held > 1 second; exception: +10&-10 are 64
+  // other units add:
+  // 01: auto; 02: standby; 03: track; 04: disp; 09: -1 in rudder gain mode;
+  // 0a +1 in rudder gain mode; 23: start vane mode; 2e: +1&-1 in resp mode;
+  // above | 0x40 held > 1 second; 63: previous wind angle; 68: +10&-10
+  // 80: -1 held; 81: +1 held; 82: -10 held; 83: +10 held; 84: above released
+  // 80-83 repeated every second
+  int x, yy;
+  x = 2; // hard code as ST600R remote
+  yy = command;
+  INITIALIZE_DATAGRAM(86, x);
+  datagram[2] = yy;
+  datagram[3] = complement_checksum(yy);
+  return DATAGRAM_86_LENGTH;
+}
+
+int parse_autopilot_command(char *datagram, enum ST_AUTOPILOT_COMMAND *command) {
+  int x, yy, yy_comp;
+  x = first_nibble(datagram[1]);
+  yy = datagram[2];
+  yy_comp = datagram[3];
+  if ((yy | yy_comp) != 0xff) {
+    command = 0;
+    return -1;
+  }
+  *command = yy;
+  return 0;
+}
+
+void accept_autopilot_command(char *datagram) {
+//  int button_1_value, button_2_value, pressed_longer, held_down, z101_remote;
+//  if (parse_autopilot_remote_control_keystroke(datagram, &button_1_value, &button_2_value, &pressed_longer, &held_down, &z101_remote) == 0) {
+//    if (!(pressed_longer || held_down)) {
+//      if (button_2_value) { // single key pressed
+//        if (button_1_value < 100) { // direction command key pressed
+//          change_autopilot_heading(button_1_value);
+//        } else {
+//          switch (button_1_value) {
+//            case 101: // auto
+//              set_autopilot_mode(
+//      }
+//      if (button_1_value && button_2_value) { // key combination
+//      }
+//    }
+//  }
+}
+
+int build_set_autopilot_response_level(char *datagram, enum AUTOPILOT_RESPONSE_LEVEL response_level) {
+  // 87 00 0x
+  // x = 1: automatic deadband; x = 2: minimum deadband
+  int x;
+  if (response_level == AUTOPILOT_RESPONSE_LEVEL_MINIMUM_DEADBAND) {
+    x = 1;
+  } else {
+    x = 0;
+  }
+  INITIALIZE_DATAGRAM(87, 0);
+  datagram[2] = x;
+  return DATAGRAM_87_LENGTH;
+}
+
+void parse_set_autopilot_response_level(char *datagram, enum AUTOPILOT_RESPONSE_LEVEL *response_level) {
   int x;
   x = last_nibble(datagram[2]);
   *response_level = x;
 }
 
 void accept_set_autopilot_response_level(char *datagram) {
-  int response_level;
+  enum AUTOPILOT_RESPONSE_LEVEL response_level;
   parse_set_autopilot_response_level(datagram, &response_level);
 //  set_autopilot_response_level(response_level);
 }
@@ -1215,15 +1469,41 @@ void update_autopilot_parameter(char *datagram) {
 //  set_autopilot_parameter(parameter, min_value, max_value, value);
 }
 
+int build_heading(char *datagram, int heading, int locked_heading_active, int locked_heading) {
+  // 89 U2 VW XY 2Z
+  // compass (degrees)
+  // lower two bits of U * 90 +
+  // the six lower bits of VW * 2 +
+  // the two higher bits of U / 2
+  // locked stear reference (ST40 only):
+  // two higher bits of V * 90 + XY / 2
+  // Z & 2 = 0: ST40 in standby mode
+  // Z & 2 = 2: ST40 in locked stear mode
+  int u, vw_lower, vw_higher, xy, z;
+  int temp_compass;
+  uvw_compass(&u, &vw_lower, heading);
+  vw_higher = 0;
+  temp_compass = locked_heading;
+  vw_higher = temp_compass / 90;
+  temp_compass = temp_compass % 90;
+  xy = temp_compass << 1;
+  z = locked_heading_active ? 0x2 : 0;
+  INITIALIZE_DATAGRAM(89, u);
+  datagram[2] = (vw_higher << 6) | vw_lower;
+  datagram[3] = xy;
+  datagram[4] = 0x20 | z;
+  return DATAGRAM_89_LENGTH;
+}
+
 void parse_heading(char *datagram, int *heading, int *locked_heading_active, int *locked_heading) {
   int u, vw, xy, z;
   u = first_nibble(datagram[1]);
   vw = datagram[2];
   xy = datagram[3];
   z = last_nibble(datagram[4]);
-  *heading = ((u & 0x3) * 90) + (vw & 0x3f) * 2 + (u & 0xc) >> 3;
-  *locked_heading_active = (z & 0x2) != 0;
-  *locked_heading = ((vw * 0xc0) >> 6) * 90 + xy >> 1;
+  *heading = ((u & 0x3) * 90) + (vw & 0x3f) * 2 + ((u & 0xc) >> 3);
+  *locked_heading_active = flag(z, 0x2);
+  *locked_heading = ((vw & 0xc0) >> 6) * 90 + (xy >> 1);
 }
 
 void update_heading(char *datagram) {
@@ -1232,9 +1512,20 @@ void update_heading(char *datagram) {
 //  set_heading(heading, locked_heading_active, locked_heading);
 }
 
+int build_set_rudder_gain(char *datagram, int rudder_gain) {
+  // 91 00 0x
+  // x = rudder gain (1-9)
+  int x;
+  x = rudder_gain & 0xf;
+  INITIALIZE_DATAGRAM(91, 0);
+  datagram[2] = x;
+  return DATAGRAM_91_LENGTH;
+}
+
 void parse_set_rudder_gain(char *datagram, int *rudder_gain) {
   int x;
   x = last_nibble(datagram[2]);
+  *rudder_gain = x;
 }
 
 void accept_set_rudder_gain(char *datagram) {
@@ -1261,14 +1552,20 @@ void accept_enter_autopilot_setup(char *datagram) {
   parse_enter_autopilot_setup(datagram);
 }
 
-void parse_compass_variation(char *datagram, int *compass_variation) {
+int build_compass_variation(char *datagram, int degrees) {
+  // 99 00 xx
+  // xx = variation west in degrees (-ve means variation east)
+  int xx;
+  xx = degrees;
+  INITIALIZE_DATAGRAM(99, 0);
+  datagram[2] = xx;
+  return DATAGRAM_99_LENGTH;
+}
+
+void parse_compass_variation(char *datagram, int *degrees) {
   int xx;
   xx = datagram[2];
-  if (xx & 0x80) { // -ve means variation East
-    *compass_variation = -1 * (!xx + 1);
-  } else {
-    *compass_variation = xx;
-  }
+  *degrees = fix_twos_complement_char(xx);
 }
 
 void update_compass_variation(char *datagram) {
@@ -1277,22 +1574,33 @@ void update_compass_variation(char *datagram) {
 //  set_compass_variation(compass_variation);
 }
 
-void parse_compass_heading_and_rudder_position(char *datagram, int *heading, int *rudder_position) {
+int build_heading_and_rudder_position(char *datagram, int heading, int turning_direction, int rudder_position) {
+  // 9c u1 vw rr
+  // heading = (two low bits of u * 90 + vw * 2 + number of high bits in u
+  // turning durection: high bit of u means right, 0 mans left
+  // rudder position degrees left or right
+  int u, vw, rr;
+  uvw_heading_and_turning_direction(heading, turning_direction, &u, &vw);
+  rr = rudder_position;
+  INITIALIZE_DATAGRAM(9C, u);
+  datagram[2] = vw;
+  datagram[3] = rr;
+  return DATAGRAM_9C_LENGTH;
+}
+
+void parse_heading_and_rudder_position(char *datagram, int *heading, int *turning_direction, int *rudder_position) {
   int u, vw, rr;
   u = first_nibble(datagram[1]);
   vw = datagram[2];
   rr = datagram[3];
-  *heading = ((u & 0x3) * 90) + ((vw & 0x3f) * 2) + (u & 0xc ? (u & 0xc == 0xc ? 2 : 1) : 0);
-  if (rr & 0x8) {
-    *rudder_position = -1 * (!rr + 1);
-  } else {
-    *rudder_position = rr;
-  }
+  *heading = (((u & 0x3) * 90) + ((vw & 0x3f) * 2) + (u & 0xc ? ((u & 0xc) == 0xc ? 2 : 1) : 0)) % 360;
+  *turning_direction = flag(u, 0x8);
+  *rudder_position = fix_twos_complement_char(rr);;
 }
 
-void update_compass_heading_and_rudder_position(char *datagram) {
-  int compass_heading, rudder_position;
-  parse_compass_heading_and_rudder_position(datagram, &compass_heading, &rudder_position);
+void update_heading_and_rudder_position(char *datagram) {
+  int heading, turning_direction, rudder_position;
+  parse_heading_and_rudder_position(datagram, &heading, &turning_direction, &rudder_position);
 //  set_compass_heading_and_rudder_position(compass_heading, rudder_position);
 }
 
@@ -1424,7 +1732,7 @@ void handle_seatalk_datagram(char *datagram) {
       update_gmt_time(datagram);
       break;
     case 0x55: // TRACK keystroke on GPS unit
-      accept_autopilot_remote_control_keystroke(datagram);
+      // accept_autopilot_remote_control_keystroke(datagram);
       break;
     case 0x56: // date
       update_date(datagram);
@@ -1436,7 +1744,7 @@ void handle_seatalk_datagram(char *datagram) {
       update_lat_lon_position(datagram);
       break;
     case 0x59: // set countdown timer
-      accept_set_countdown_timer(datagram);
+      update_countdown_timer(datagram);
       break;
     case 0x61: // e-80 unit initialization broadcast
       break;
@@ -1472,7 +1780,7 @@ void handle_seatalk_datagram(char *datagram) {
       update_waypoint_navigation(datagram);
       break;
     case 0x86: // autopilot command
-      accept_autopilot_remote_control_keystroke(datagram);
+      // accept_autopilot_remote_control_keystroke(datagram);
       break;
     case 0x87: // set autopilot response level
       accept_set_autopilot_response_level(datagram);
@@ -1502,7 +1810,7 @@ void handle_seatalk_datagram(char *datagram) {
     case 0x9a: // version string
       break;
     case 0x9c: // compass heading and rudder position
-      update_compass_heading_and_rudder_position(datagram);
+      update_heading_and_rudder_position(datagram);
       break;
     case 0x9e: // waypoint definition
       break;
@@ -1523,63 +1831,4 @@ void handle_seatalk_datagram(char *datagram) {
     case 0xab: // alarm notice for guard #1 or guard #2
       break;
   }
-}
-
-int build_gmt_time(char *datagram, int hours, int minutes, int seconds) {
-  // 54, T1, RS, HH
-  // HH = hours
-  // 6 highest bits of RST = minutes = (RS & 0xfc) >> 2
-  // 6 lowest bits of RST = seconds = ST & 0x3f
-  int t, rs, hh;
-  hh = hours;
-  rs = minutes << 2;
-  rs |= seconds >> 6;
-  t = seconds & 0xf;
-  INITIALIZE_DATAGRAM(54, t);
-  datagram[2] = rs;
-  datagram[3] = hh;
-  return DATAGRAM_54_LENGTH;
-}
-
-//int build_track_keystroke_from_gps(char *datagram) {
-//}
-
-int build_date_datagram(char *datagram, int year, int month, int day) {
-  // 56 M1 DD YY
-  // YY year M month D day of month
-  int yy, m, dd;
-  yy = year;
-  m = month;
-  dd = day;
-  INITIALIZE_DATAGRAM(56, m);
-  datagram[2] = dd;
-  datagram[3] = yy;
-  return DATAGRAM_56_LENGTH;
-}
-
-int build_compass_datagram(char *datagram, int compass) {
-  // 89 U2 VW XY 2Z
-  // compass (degrees)
-  // lower two bits of U * 90 +
-  // the six lower bits of VW * 2 +
-  // the two higher bits of U / 2
-  // locked stear reference (ST40 only):
-  // two higher bits of V * 90 + XY / 2
-  // Z & 2 = 0: ST40 in standby mode
-  // Z & 2 = 2: ST40 in locked stear mode
-  int u, vw_lower, vw_higher, xy, z;
-  uvw_compass(&u, &vw_lower, compass);
-//  temp_compass = compass;
-//  vw_higher = (int)(temp_compass / 90) << 6;
-  vw_higher = 0;
-//  temp_compass = temp_compass - ((vw_higher >> 6) * 90);
-//  xy = temp_compass << 1;
-  xy = 0;
-  z = 0;
-  initialize_datagram(datagram, 0x89, DATAGRAM_89_LENGTH, u);
-  datagram[2] = vw_higher | vw_lower;
-  datagram[3] = xy;
-  datagram[4] = 0x20 | z;
-  datagram[2] = vw_lower;
-  return DATAGRAM_89_LENGTH;
 }

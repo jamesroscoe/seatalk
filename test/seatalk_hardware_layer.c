@@ -2,7 +2,7 @@
 #include "test.h"
 #include "seatalk_hardware_layer.h"
 #include "../seatalk_transport_layer.h"
-#include "seatalk_transport_layer.h"
+#include "seatalk_transport_layer_test.h"
 
 int rx_bit_value = 0;
 

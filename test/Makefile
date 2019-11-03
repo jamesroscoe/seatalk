@@ -1,2 +1,2 @@
-seatalk_test: seatalk_test.c assertions.c seatalk_hardware_layer.c seatalk_transport_layer.c seatalk_state.c seatalk_datagram.c seatalk_command.c
-	cc -o seatalk_test seatalk_test.c seatalk_transport_layer.c seatalk_state.c seatalk_hardware_layer.c seatalk_datagram.c assertions.c seatalk_command.c -I.
+seatalk_test: seatalk_test.c assertions.c seatalk_hardware_layer.c seatalk_transport_layer_test.c seatalk_protocol_test.c seatalk_datagram_test.c seatalk_command_test.c boat_status_test.c timeout.c
+	cc -o seatalk_test seatalk_test.c assertions.c seatalk_hardware_layer.c seatalk_transport_layer_test.c seatalk_protocol_test.c seatalk_datagram_test.c seatalk_command_test.c boat_status_test.c timeout.c -I.
