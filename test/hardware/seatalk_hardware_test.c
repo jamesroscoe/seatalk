@@ -20,7 +20,7 @@ int seatalk_sensor_pending(void) {
    return 0;
 }
 
-void update_seatalk_state(char *datagram) {
+void handle_seatalk_datagram(char *datagram) {
   int i;
   pr_info("update_seatalk_state");
   for (i = 0; i < (get_datagram_length(datagram[1]) + 3); i++) {

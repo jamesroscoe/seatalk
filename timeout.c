@@ -2,6 +2,7 @@
   #include <time.h>
 #else
   #include <linux/time.h>
+  #include <linux/module.h>
 #endif
 #include "timeout.h"
 

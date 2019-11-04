@@ -1,5 +1,5 @@
 obj-m += seatalk.o
-seatalk-y := seatalk_module.o seatalk_hardware_layer.o ../seatalk_state.o ../seatalk_transport_layer.o ../seatalk_datagram.o ../seatalk_command.o
+seatalk-y := seatalk_module.o seatalk_hardware_layer.o ../boat_status.o ../seatalk_transport_layer.o ../seatalk_datagram.o ../seatalk_protocol.o ../seatalk_command.o ../timeout.o
 
 KDIR = /lib/modules/$(shell uname -r)/build
 
