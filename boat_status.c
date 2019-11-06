@@ -270,7 +270,7 @@ void set_navigation_waypoint_name(char *name) {
   int i;
   VALIDATE_STATUS(navigation);
   for (i = 0; i <= 4; i++) {
-    STATUS_VARIABLE(navigation).waypoint_name[i] = name[i];
+    STATUS_VARIABLE(navigation).waypoint_name_last_4[i] = name[i];
   }
 }
 

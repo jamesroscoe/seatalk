@@ -53,8 +53,8 @@ typedef enum { TURN_DIRECTION_NONE, TURN_DIRECTION_LEFT, TURN_DIRECTION_RIGHT } 
 
 int get_heading(int *degrees);
 void set_heading(int degrees);
-int get_heading_reference(ANGLE_REFERENCE *referebce);
-void set_heading_reference(ANGLE_REFERENCE reference);
+//int get_heading_reference(ANGLE_REFERENCE *referebce);
+//void set_heading_reference(ANGLE_REFERENCE reference);
 int get_turn_direction(TURN_DIRECTION *direction);
 void set_turn_direction(TURN_DIRECTION direction);
 int get_water_speed_in_knots_times_100(int *knots_times_100);
@@ -122,7 +122,7 @@ void set_gps_fix_dgps_age(int dgps_age_valid, int dgps_age);
 void set_gps_fix_dgps_station_id(int dgps_station_id_valid, int dgps_station_id);
 
 typedef struct {
-  char waypoint_name[5];
+  char waypoint_name_last_4[5];
   POSITION waypoint_position;
   int waypoint_bearing;
   ANGLE_REFERENCE waypoint_bearing_reference;
@@ -130,7 +130,7 @@ typedef struct {
   int cross_track_error_in_nautical_miles_times_100;
 } NAVIGATION_STATUS;
 
-int get_navigation_status(NAVIGATION_STATUS *navigation_status);
+int get_navigation(NAVIGATION_STATUS *navigation_status);
 void set_navigation_waypoint_name(char *name);
 void set_navigation_waypoint_position_latitude(LATITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_1000);
 void set_navigation_waypoint_position_longitude(LONGITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_1000);
@@ -161,7 +161,7 @@ typedef struct {
   int rudder_gain;
 } AUTOPILOT_STATUS;
 
-int get_autopilot_status(AUTOPILOT_STATUS *new_ap_status);
+int get_autopilot(AUTOPILOT_STATUS *new_ap_status);
 void set_autopilot_target_heading(int degrees);
 void set_autopilot_mode(AUTOPILOT_MODE mode);
 //void set_autopilot_response_level(AUTOPILOT_RESPONSE_LEVEL response_level);
