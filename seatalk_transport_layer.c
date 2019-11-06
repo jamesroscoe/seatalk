@@ -2,6 +2,7 @@
 #include "seatalk_hardware_layer.h"
 #include "seatalk_protocol.h"
 #include "seatalk_command.h"
+#include "boat_status.h"
 #include "seatalk_datagram.h"
 #include "logger.h"
 
@@ -24,9 +25,9 @@ int transmit_buffer_position = 0;
 int transmit_datagram_bytes_remaining = 0;
 
 int data_enqueued = 0;
-enum BUS_STATE bus_state = BUS_STATE_IDLE;
+BUS_STATE bus_state = BUS_STATE_IDLE;
 
-void set_bus_state(enum BUS_STATE new_state) {
+void set_bus_state(BUS_STATE new_state) {
   bus_state = new_state;
 }
 
@@ -49,7 +50,7 @@ void cancel_datagram(void) {
 }
 
 int seatalk_byte_received(char data_byte, int command_bit) {
-  enum BUS_STATE current_state = bus_state;
+  BUS_STATE current_state = bus_state;
   set_bus_state(BUS_STATE_WAIT_FOR_IDLE);
   LOG("byte received: %x command_bit: %d bytes_remaining: %d", data_byte, command_bit, receive_datagram_bytes_remaining);
   if (current_state == BUS_STATE_TRANSMITTING) {
@@ -85,7 +86,7 @@ int seatalk_byte_received(char data_byte, int command_bit) {
 
 int initiate_seatalk_receive_character(void) {
   if (rx_bit_number == -1) {
-    enum BUS_STATE current_state = bus_state;
+    BUS_STATE current_state = bus_state;
     if ((current_state == BUS_STATE_IDLE) || (current_state == BUS_STATE_WAIT_FOR_IDLE)) {
       set_bus_state(BUS_STATE_RECEIVING);
     }

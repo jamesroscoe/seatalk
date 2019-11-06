@@ -1,10 +1,9 @@
 #include <stdio.h>
 #include "defines.h"
 #include "test.h"
+#include "../seatalk_transport_layer.c"
 #include "seatalk_transport_layer_test.h"
 #include "seatalk_hardware_layer.h"
-
-#include "../seatalk_transport_layer.c"
 
 /*
 int simulate_transmit_character(char byte, int command_bit, char receive_byte, int receive_command_bit) {
@@ -40,11 +39,11 @@ int simulate_clear_transmit() {
 }
 */
 
-enum BUS_STATE get_bus_state(void) {
+BUS_STATE get_bus_state(void) {
   return bus_state;
 }
 
-void print_bus_state(enum BUS_STATE state) {
+void print_bus_state(BUS_STATE state) {
   printf("state: %d (IDLE=%d, RECEIVING=%d, TRANSMITTING=%d, WAIT_FOR_IDLE=%d)\n",
     state, BUS_STATE_IDLE, BUS_STATE_RECEIVING, BUS_STATE_TRANSMITTING, 
     BUS_STATE_WAIT_FOR_IDLE);

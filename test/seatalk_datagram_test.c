@@ -41,9 +41,9 @@ TEST_DATAGRAM(00) // depth below transducer
 
 //TEST_DATAGRAM(01) // equipment id
 
-void assert_engine_rpm_and_pitch(enum ENGINE_ID engine_id_in, int rpm_in, int pitch_percent_in) {
+void assert_engine_rpm_and_pitch(ENGINE_ID engine_id_in, int rpm_in, int pitch_percent_in) {
   char datagram[256];
-  enum ENGINE_ID engine_id_out;
+  ENGINE_ID engine_id_out;
   int rpm_out, pitch_percent_out;
   assert_equal_int(DATAGRAM_05_LENGTH, build_engine_rpm_and_pitch(datagram, engine_id_in, rpm_in, pitch_percent_in), "incorrect datagram length");
   parse_engine_rpm_and_pitch(datagram, &engine_id_out, &rpm_out, &pitch_percent_out);
@@ -160,9 +160,9 @@ TEST_DATAGRAM(23) // water temperature
   assert_water_temperature(75, 1);
 }
 
-void assert_speed_distance_units(enum DISTANCE_UNITS distance_units_in) {
+void assert_speed_distance_units(DISTANCE_UNITS distance_units_in) {
   char datagram[256];
-  enum DISTANCE_UNITS distance_units_out;
+  DISTANCE_UNITS distance_units_out;
   assert_equal_int(DATAGRAM_24_LENGTH, build_speed_distance_units(datagram, distance_units_in), "incorrect datagram length");
   parse_speed_distance_units(datagram, &distance_units_out);
   CHECK_INT(distance_units);
@@ -247,36 +247,42 @@ TEST_DATAGRAM(30) // set lamp intensity
   }
 }
 
-void assert_lat_position(int degrees_in, int minutes_times_100_in) {
+void assert_lat_position(LATITUDE_HEMISPHERE hemisphere_in, int degrees_in, int minutes_times_100_in) {
   char datagram[256];
   int degrees_out, minutes_times_100_out;
-  assert_equal_int(DATAGRAM_50_LENGTH, build_lat_position(datagram, degrees_in, minutes_times_100_in), "incorrect datagram length");
-  parse_lat_position(datagram, &degrees_out, &minutes_times_100_out);
+  LATITUDE_HEMISPHERE hemisphere_out;
+  assert_equal_int(DATAGRAM_50_LENGTH, build_lat_position(datagram, hemisphere_in, degrees_in, minutes_times_100_in), "incorrect datagram length");
+  parse_lat_position(datagram, &hemisphere_out, &degrees_out, &minutes_times_100_out);
+  CHECK_INT(hemisphere);
   CHECK_INT(degrees);
   CHECK_INT(minutes_times_100);
 }
 
 TEST_DATAGRAM(50) // latitude
-  for (int i = -89; i < 90; i += 5) {
+  for (int i = 0; i < 90; i += 5) {
     for (int j = 0; j < 6000; j += 37) {
-      assert_lat_position(i, j);
+      assert_lat_position(LATITUDE_HEMISPHERE_NORTH, i, j);
+      assert_lat_position(LATITUDE_HEMISPHERE_SOUTH, i, j);
     }
   }
 }
 
-void assert_lon_position(int degrees_in, int minutes_times_100_in) {
+void assert_lon_position(LONGITUDE_HEMISPHERE hemisphere_in, int degrees_in, int minutes_times_100_in) {
   char datagram[256];
   int degrees_out, minutes_times_100_out;
-  assert_equal_int(DATAGRAM_51_LENGTH, build_lon_position(datagram, degrees_in, minutes_times_100_in), "incorrect datagram length");
-  parse_lon_position(datagram, &degrees_out, &minutes_times_100_out);
+  LONGITUDE_HEMISPHERE hemisphere_out;
+  assert_equal_int(DATAGRAM_51_LENGTH, build_lon_position(datagram, hemisphere_in, degrees_in, minutes_times_100_in), "incorrect datagram length");
+  parse_lon_position(datagram, &hemisphere_out, &degrees_out, &minutes_times_100_out);
+  CHECK_INT(hemisphere);
   CHECK_INT(degrees);
   CHECK_INT(minutes_times_100);
 }
 
 TEST_DATAGRAM(51) // longitude
-  for (int i = -179; i < 180; i += 5) {
+  for (int i = 0; i < 180; i += 5) {
     for (int j = 6000; j <= 6000; j += 37) {
-      assert_lon_position(i, j);
+      assert_lon_position(LONGITUDE_HEMISPHERE_WEST, i, j);
+      assert_lon_position(LONGITUDE_HEMISPHERE_EAST, i, j);
     }
   }
 }
@@ -368,15 +374,17 @@ TEST_DATAGRAM(57) // satellite info
   }
 }
 
-void assert_lat_lon_position(int north_in, int degrees_lat_in, int minutes_lat_times_1000_in, int west_in, int degrees_lon_in, int minutes_lon_times_1000_in) {
+void assert_lat_lon_position(LATITUDE_HEMISPHERE hemisphere_latitude_in, int degrees_lat_in, int minutes_lat_times_1000_in, LONGITUDE_HEMISPHERE hemisphere_longitude_in, int degrees_lon_in, int minutes_lon_times_1000_in) {
   char datagram[256];
-  int north_out, degrees_lat_out, minutes_lat_times_1000_out, west_out, degrees_lon_out, minutes_lon_times_1000_out;
-  assert_equal_int(DATAGRAM_58_LENGTH, build_lat_lon_position(datagram, north_in, degrees_lat_in, minutes_lat_times_1000_in, west_in, degrees_lon_in, minutes_lon_times_1000_in), "incorrect datagram length");
-  parse_lat_lon_position(datagram, &north_out, &degrees_lat_out, &minutes_lat_times_1000_out, &west_out, &degrees_lon_out, &minutes_lon_times_1000_out);
-  CHECK_INT(north);
+  int degrees_lat_out, minutes_lat_times_1000_out, degrees_lon_out, minutes_lon_times_1000_out;
+  LATITUDE_HEMISPHERE hemisphere_latitude_out;
+  LONGITUDE_HEMISPHERE hemisphere_longitude_out;
+  assert_equal_int(DATAGRAM_58_LENGTH, build_lat_lon_position(datagram, hemisphere_latitude_in, degrees_lat_in, minutes_lat_times_1000_in, hemisphere_longitude_in, degrees_lon_in, minutes_lon_times_1000_in), "incorrect datagram length");
+  parse_lat_lon_position(datagram, &hemisphere_latitude_out, &degrees_lat_out, &minutes_lat_times_1000_out, &hemisphere_longitude_out, &degrees_lon_out, &minutes_lon_times_1000_out);
+  CHECK_INT(hemisphere_latitude);
   CHECK_INT(degrees_lat);
   CHECK_INT(minutes_lat_times_1000);
-  CHECK_INT(west);
+  CHECK_INT(hemisphere_longitude);
   CHECK_INT(degrees_lon);
   CHECK_INT(minutes_lon_times_1000);
 }
@@ -384,18 +392,18 @@ void assert_lat_lon_position(int north_in, int degrees_lat_in, int minutes_lat_t
 TEST_DATAGRAM(58) // lat/lon position
   for (int i = 0; i < 180; i++) {
     for (int j = 0; j < 60000; j += 1001) {
-      assert_lat_lon_position(1, i/2, 60000-j, 1, i, j);
-      assert_lat_lon_position(0, i/2, 60000-j, 0, i, j);
-      assert_lat_lon_position(0, i/2, 60000-j, 0, i, j);
-      assert_lat_lon_position(1, i/2, 60000-j, 1, i, j);
+      assert_lat_lon_position(LATITUDE_HEMISPHERE_NORTH, i/2, 60000-j, LONGITUDE_HEMISPHERE_WEST, i, j);
+      assert_lat_lon_position(LATITUDE_HEMISPHERE_SOUTH, i/2, 60000-j, LONGITUDE_HEMISPHERE_EAST, i, j);
+      assert_lat_lon_position(LATITUDE_HEMISPHERE_SOUTH, i/2, 60000-j, LONGITUDE_HEMISPHERE_WEST, i, j);
+      assert_lat_lon_position(LATITUDE_HEMISPHERE_NORTH, i/2, 60000-j, LONGITUDE_HEMISPHERE_EAST, i, j);
     }
   }
 }
 
-void assert_countdown_timer(int hours_in, int minutes_in, int seconds_in, enum TIMER_MODE mode_in) {
+void assert_countdown_timer(int hours_in, int minutes_in, int seconds_in, TIMER_MODE mode_in) {
   char datagram[256];
   int hours_out, minutes_out, seconds_out;
-  enum TIMER_MODE mode_out;
+  TIMER_MODE mode_out;
   assert_equal_int(DATAGRAM_59_LENGTH, build_countdown_timer(datagram, hours_in, minutes_in, seconds_in, mode_in), "incorrect datagram length");
   parse_countdown_timer(datagram, &hours_out, &minutes_out, &seconds_out, &mode_out);
   CHECK_INT(hours);
@@ -479,9 +487,9 @@ TEST_DATAGRAM(82) // target waypoint name
   }
 }
 
-void assert_course_computer_failure(enum COURSE_COMPUTER_FAILURE_TYPE failure_type_in) {
+void assert_course_computer_failure(COURSE_COMPUTER_FAILURE_TYPE failure_type_in) {
   char datagram[256];
-  enum COURSE_COMPUTER_FAILURE_TYPE failure_type_out;
+  COURSE_COMPUTER_FAILURE_TYPE failure_type_out;
   assert_equal_int(DATAGRAM_83_LENGTH, build_course_computer_failure(datagram, failure_type_in), "incorrect datagram length");
   parse_course_computer_failure(datagram, &failure_type_out);
   CHECK_INT(failure_type);
@@ -493,10 +501,10 @@ TEST_DATAGRAM(83) // course computer failure
   assert_course_computer_failure(COURSE_COMPUTER_FAILURE_TYPE_DRIVE_STOPPED);
 }
 
-void assert_autopilot_status(int compass_heading_in, int turning_direction_in, int target_heading_in, enum AUTOPILOT_MODE mode_in, int rudder_position_in, int alarms_in, int display_flags_in) {
+void assert_autopilot_status(int compass_heading_in, int turning_direction_in, int target_heading_in, AUTOPILOT_MODE mode_in, int rudder_position_in, int alarms_in, int display_flags_in) {
   char datagram[256];
   int compass_heading_out, turning_direction_out, target_heading_out, alarms_out, rudder_position_out, display_flags_out;
-  enum AUTOPILOT_MODE mode_out;
+  AUTOPILOT_MODE mode_out;
   assert_equal_int(DATAGRAM_84_LENGTH, build_autopilot_status(datagram, compass_heading_in, turning_direction_in, target_heading_in, mode_in, rudder_position_in, alarms_in, display_flags_in), "incorrect datagram length");
   parse_autopilot_status(datagram, &compass_heading_out, &turning_direction_out, &target_heading_out, &mode_out, &rudder_position_out, &alarms_out, &display_flags_out);
   CHECK_INT(compass_heading);
@@ -580,9 +588,9 @@ TEST_DATAGRAM(85) // waypoint navigation
   assert_waypoint_navigation(1, 100, 1, 200, 1, 1, 300, -1);
 }
 
-void assert_autopilot_command(enum ST_AUTOPILOT_COMMAND command_in) {
+void assert_autopilot_command(ST_AUTOPILOT_COMMAND command_in) {
   char datagram[256];
-  enum ST_AUTOPILOT_COMMAND command_out;
+  ST_AUTOPILOT_COMMAND command_out;
   assert_equal_int(DATAGRAM_86_LENGTH, build_autopilot_command(datagram, command_in), "incorrect datagram length");
   assert_equal_int(0, parse_autopilot_command(datagram, &command_out), "checksum");
   CHECK_INT(command);
@@ -593,9 +601,9 @@ TEST_DATAGRAM(86) // autopilot command
   assert_autopilot_command(ST_AUTOPILOT_COMMAND_STANDBY);
 }
 
-void assert_set_autopilot_response_level(enum AUTOPILOT_RESPONSE_LEVEL response_level_in) {
+void assert_set_autopilot_response_level(AUTOPILOT_RESPONSE_LEVEL response_level_in) {
   char datagram[256];
-  enum AUTOPILOT_RESPONSE_LEVEL response_level_out;
+  AUTOPILOT_RESPONSE_LEVEL response_level_out;
   assert_equal_int(DATAGRAM_87_LENGTH, build_set_autopilot_response_level(datagram, response_level_in), "incorrect datagram length");
   parse_set_autopilot_response_level(datagram, &response_level_out);
   CHECK_INT(response_level);

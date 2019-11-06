@@ -22,9 +22,9 @@ int build_sensor_datagram(char *datagram) {
 
 int get_pending_datagram(char *datagram) {
   int length;
-  if (length = build_command_datagram(datagram)) {
+  if ((length = build_command_datagram(datagram))) {
     return length;
-  } else if (length = build_sensor_datagram(datagram)) {
+  } else if ((length = build_sensor_datagram(datagram))) {
     return length;
   } else {
     return 0;
@@ -33,55 +33,63 @@ int get_pending_datagram(char *datagram) {
 
 void update_depth_below_transducer(char *datagram) {
   int depth_in_feet_times_10, display_in_metres, active_alarms, transducer_defective;
+  int current_active_alarms;
   parse_depth_below_transducer(datagram, &depth_in_feet_times_10, &display_in_metres, &active_alarms, &transducer_defective);
-//  set_depth_status(depth_in_feet_times_10, display_in_metres, active_alarms, transducer_defective);
+  set_depth_below_transducer_in_feet_times_10(depth_in_feet_times_10);
+  if (active_alarms) {
+    if (get_active_alarms(&current_active_alarms) != 0) {
+      current_active_alarms = 0;
+    }
+    set_active_alarms(current_active_alarms | active_alarms);
+  }
 }
 
 void update_engine_rpm_and_pitch(char *datagram) {
-  enum ENGINE_ID engine_id;
+  ENGINE_ID engine_id;
   int rpm, pitch_percent;
   parse_engine_rpm_and_pitch(datagram, &engine_id, &rpm, &pitch_percent);
-//  set_engine_rpm_and_pitch(engine_id, rpm, pitch_percent);
+  set_engine_rpm(engine_id, rpm);
+  set_engine_prop_pitch_percent(engine_id, pitch_percent);
 }
 
 void update_apparent_wind_angle(char *datagram) {
   int degrees_right_times_2;
   parse_apparent_wind_angle(datagram, &degrees_right_times_2);
-//  set_apparent_wind_angle(degrees_right_times_2);
+  set_apparent_wind_angle(degrees_right_times_2 >> 1);
 }
 
 void update_apparent_wind_speed(char *datagram) {
   int knots_times_10, display_in_metric;
   parse_apparent_wind_speed(datagram, &knots_times_10, &display_in_metric);
-//  set_apparent_wind_speed(knots_times_10);
+  set_apparent_wind_speed_in_knots_times_10(knots_times_10);
 }
 
 void update_water_speed(char *datagram) {
   int knots_times_10;
   parse_water_speed(datagram, &knots_times_10);
-//  set_water_speed(knots_times_10);
+  set_water_speed_in_knots_times_100(knots_times_10 * 10);
 }
 
 void update_trip_mileage(char *datagram) {
   int miles_times_100;
   parse_trip_mileage(datagram, &miles_times_100);
-//  set_trip_mileage(miles_times_100);
+  set_trip_mileage_in_nautical_miles_times_100(miles_times_100);
 }
 
 void update_total_mileage(char *datagram) {
   int miles_times_10;
   parse_total_mileage(datagram, &miles_times_10);
-//  set_total_mileage(miles_times_10);
+  set_total_mileage_in_nautical_miles_times_10(miles_times_10);
 }
 
 void update_water_temperature(char *datagram) {
   int celsius, transducer_defective;
   parse_water_temperature(datagram, &celsius, &transducer_defective);
-//  set_water_temperature(celsius);
+  set_water_temperature_in_degrees_celsius_times_10(celsius * 10);
 }
 
 void update_speed_distance_units(char *datagram) {
-  enum DISTANCE_UNITS distance_units;
+  DISTANCE_UNITS distance_units;
   parse_speed_distance_units(datagram, &distance_units);
 //  set_speed_distance_units(units);
 }
@@ -89,19 +97,21 @@ void update_speed_distance_units(char *datagram) {
 void update_total_and_trip_mileage(char *datagram) {
   int total_mileage_times_10, trip_mileage_times_100;
   parse_total_and_trip_mileage(datagram, &total_mileage_times_10, &trip_mileage_times_100);
-//  set_total_and_trip_mileage(total_mileage_times_10, trip_mileage_times_100);
+  set_trip_mileage_in_nautical_miles_times_100(trip_mileage_times_100);
+  set_total_mileage_in_nautical_miles_times_10(total_mileage_times_10);
 }
 
 void update_average_water_speed(char *datagram) {
   int knots_1_times_100, knots_2_times_100, speed_1_from_sensor, speed_2_is_average, average_is_stopped, units;
   parse_average_water_speed(datagram, &knots_1_times_100, &knots_2_times_100, &speed_1_from_sensor, &speed_2_is_average, &average_is_stopped, &units);
-//  set_average_water_speed(knots_1_times_100, knots_2_times_100, speed_1_from_sensor, speed_2_is_average, average_calculation_stopped, units);
+  // this just assumes speed_2 is average
+  set_average_water_speed_in_knots_times_100(knots_2_times_100);
 }
 
 void update_precise_water_temperature(char *datagram) {
   int celsius_times_10;
   parse_precise_water_temperature(datagram, &celsius_times_10);
-//  set_precise_water_temperature(celsiurs_times_10);
+  set_water_temperature_in_degrees_celsius_times_10(celsius_times_10);
 }
 
 void update_lamp_intensity(char *datagram) {
@@ -116,63 +126,74 @@ void accept_cancel_mob(char *datagram) {
 
 void update_lat_position(char *datagram) {
   int degrees, minutes_times_100;
-  parse_lat_position(datagram, &degrees, &minutes_times_100);
-//  set_lat_position(degrees, minutes);
+  LATITUDE_HEMISPHERE hemisphere;
+  parse_lat_position(datagram, &hemisphere, &degrees, &minutes_times_100);
+  set_position_latitude(hemisphere, degrees, minutes_times_100 * 10);
 }
 
 void update_lon_position(char *datagram) {
   int degrees, minutes_times_100;
-  parse_lon_position(datagram, &degrees, &minutes_times_100);
-//  set_lon_position(degrees, minutes);
+  LONGITUDE_HEMISPHERE hemisphere;
+  parse_lon_position(datagram, &hemisphere, &degrees, &minutes_times_100);
+  set_position_longitude(hemisphere, degrees, minutes_times_100 * 10);
 }
 
 void update_speed_over_ground(char *datagram) {
   int knots_times_10;
   parse_speed_over_ground(datagram, &knots_times_10);
-//  set_speed_over_ground(knots_times_10);
+  set_speed_over_ground_in_knots_times_100(knots_times_10 * 10);
 }
 
 void update_course_over_ground(char *datagram) {
-  int degrees;
-  parse_course_over_ground(datagram, &degrees);
-//  set_course_over_ground(degrees);
+  int true_degrees;
+  parse_course_over_ground(datagram, &true_degrees);
+  set_course_over_ground(true_degrees);
 }
 
 void update_gmt_time(char *datagram) {
   int hours, minutes, seconds;
   parse_gmt_time(datagram, &hours, &minutes, &seconds);
-//  set_gmt_time(hours, minutes, seconds);
+  set_gmt_time(hours, minutes, seconds);
 }
 
 void update_date(char *datagram) {
   int year, month, day;
   parse_date(datagram, &year, &month, &day);
-//  set_date(year, month, day);
+  set_gmt_date(year, month, day);
 }
 
 void update_satellite_info(char *datagram) {
   int satellite_count, horizontal_dilution_of_position;
   parse_satellite_info(datagram, &satellite_count, &horizontal_dilution_of_position);
-//  set_satellite_info(satellite_count, horizontal_dilution_of_position);
+  set_gps_fix_satellite_count(1, satellite_count, 0);
+  set_gps_fix_position_error(1, horizontal_dilution_of_position);
 }
 
 void update_lat_lon_position(char *datagram) {
-  int north, lat, minutes_lat_times_1000, west, lon, minutes_lon_times_1000;
-  parse_lat_lon_position(datagram, &north, &lat, &minutes_lat_times_1000, &west, &lon, &minutes_lon_times_1000);
-//  set_lat_lon_position(lat, minutes_lat_times_1000, lon, minutes_lon_times_1000);
+  int lat, minutes_lat_times_1000, lon, minutes_lon_times_1000;
+  LATITUDE_HEMISPHERE lat_hemisphere;
+  LONGITUDE_HEMISPHERE lon_hemisphere;
+  parse_lat_lon_position(datagram, &lat_hemisphere, &lat, &minutes_lat_times_1000, &lon_hemisphere, &lon, &minutes_lon_times_1000);
+  set_position_latitude(lat_hemisphere, lat, minutes_lat_times_1000);
+  set_position_longitude(lon_hemisphere, lon, minutes_lon_times_1000);
 }
 
 void update_countdown_timer(char *datagram) {
   int hours, minutes, seconds;
-  enum TIMER_MODE mode;
+  TIMER_MODE mode;
   parse_countdown_timer(datagram, &hours, &minutes, &seconds, &mode);
 //  set_countdown_timer(hours, minutes, seconds, mode);
 }
 
 void update_wind_alarm(char *datagram) {
-  int active_alarms;
+  int active_alarms, current_active_alarms;
   parse_wind_alarm(datagram, &active_alarms);
-//  set_wind_alarm(true_wind, angle_low, angle_high, speed_low, speed_high);
+  if (active_alarms) {
+    if (get_active_alarms(&current_active_alarms) != 0) {
+      current_active_alarms = 0;
+    }
+    set_active_alarms(current_active_alarms | active_alarms);
+  }
 }
 
 void accept_alarm_acknowledgement(char *datagram) {
@@ -202,16 +223,27 @@ void update_target_waypoint_name(char *datagram) {
 }
 
 void update_course_computer_failure(char *datagram) {
-  enum COURSE_COMPUTER_FAILURE_TYPE failure_type;
+  COURSE_COMPUTER_FAILURE_TYPE failure_type;
   parse_course_computer_failure(datagram, &failure_type);
 //  set_course_computer_failure_type(failure_type);
 }
 
 void update_autopilot_status(char *datagram) {
   int compass_heading, turning_direction, target_heading, alarms, rudder_position, display_flags;
-  enum AUTOPILOT_MODE mode;
+  AUTOPILOT_MODE mode;
+  int current_active_alarms;
   parse_autopilot_status(datagram, &compass_heading, &turning_direction, &target_heading, &mode, &alarms, &rudder_position, &display_flags);
-//  set_autopilot_status(compass_heading, turning_direction, target_heading, mode, off_course_alarm, wind_shift_alarm, rudder_position, heading_display_off, no_data, large_xte, auto_rel);
+  set_heading(compass_heading);
+  set_turn_direction(turning_direction);
+  set_autopilot_target_heading(target_heading);
+  set_autopilot_mode(mode);
+  if (alarms) {
+    if (get_active_alarms(&current_active_alarms) != 0) {
+      current_active_alarms = 0;
+    }
+    set_active_alarms(current_active_alarms | alarms);
+  }
+  set_rudder_position_in_degrees_right(rudder_position);
 }
 
 void update_waypoint_navigation(char *datagram) {
@@ -219,7 +251,13 @@ void update_waypoint_navigation(char *datagram) {
   if (parse_waypoint_navigation(datagram, &cross_track_error_present, &cross_track_error_times_100, &waypoint_bearing_present, &waypoint_bearing, &bearing_is_magnetic, &waypoint_distance_present, &waypoint_distance_times_100, &direction_to_steer) != 0) {
     return;
   }
-//  set_waypoint_navigation(waypoint_bearing, waypoint_distance, direction_to_steer, xte_present, waypoint_bearing_present, waypoint_distance_present, large_xte);
+  if (cross_track_error_present) {
+    set_navigation_cross_track_error_in_nautical_miles_times_100(cross_track_error_times_100);
+  }
+  if (waypoint_bearing_present && waypoint_distance_present) {
+    set_navigation_waypoint_bearing_and_range_in_nautical_miles_times_100(waypoint_bearing, waypoint_distance_times_100);
+    set_navigation_waypoint_bearing_reference(bearing_is_magnetic ? ANGLE_REFERENCE_MAGNETIC : ANGLE_REFERENCE_TRUE);
+  }
 }
 
 void accept_autopilot_command(char *datagram) {
@@ -241,7 +279,7 @@ void accept_autopilot_command(char *datagram) {
 }
 
 void accept_set_autopilot_response_level(char *datagram) {
-  enum AUTOPILOT_RESPONSE_LEVEL response_level;
+  AUTOPILOT_RESPONSE_LEVEL response_level;
   parse_set_autopilot_response_level(datagram, &response_level);
 //  set_autopilot_response_level(response_level);
 }
@@ -255,7 +293,8 @@ void update_autopilot_parameter(char *datagram) {
 void update_heading(char *datagram) {
   int heading, locked_heading_active, locked_heading;
   parse_heading(datagram, &heading, &locked_heading_active, &locked_heading);
-//  set_heading(heading, locked_heading_active, locked_heading);
+  set_heading(heading);
+//, locked_heading_active, locked_heading);
 }
 
 void accept_set_rudder_gain(char *datagram) {
@@ -267,6 +306,7 @@ void accept_set_rudder_gain(char *datagram) {
 void accept_set_autopilot_parameter(char *datagram) {
   int parameter, value;
   parse_set_autopilot_parameter(datagram, &parameter, &value);
+  // not doing anything with this command
 }
 
 void accept_enter_autopilot_setup(char *datagram) {
@@ -276,16 +316,18 @@ void accept_enter_autopilot_setup(char *datagram) {
 void update_compass_variation(char *datagram) {
   int compass_variation;
   parse_compass_variation(datagram, &compass_variation);
-//  set_compass_variation(compass_variation);
+  set_compass_variation_in_degrees_west(compass_variation);
 }
 
 void update_heading_and_rudder_position(char *datagram) {
   int heading, turning_direction, rudder_position;
   parse_heading_and_rudder_position(datagram, &heading, &turning_direction, &rudder_position);
-//  set_compass_heading_and_rudder_position(compass_heading, rudder_position);
+  set_heading(heading);
+  set_rudder_position_in_degrees_right(rudder_position);
 }
 
 void update_destination_waypoint_info(char *datagram) {
+  // todo
 }
 
 void update_arrival_info(char *datagram) {
@@ -303,7 +345,12 @@ void update_arrival_info(char *datagram) {
 void update_gps_and_dgps_fix_info(char *datagram) {
   int signal_quality_available, signal_quality, hdop_available, hdop, antenna_height, satellite_count_available, satellite_count, geoseparation, dgps_age_available, dgps_age, dgps_station_id_available, dgps_station_id;
   parse_gps_and_dgps_fix_info(datagram, &signal_quality_available, &signal_quality, &hdop_available, &hdop, &antenna_height, &satellite_count_available, &satellite_count, &geoseparation, &dgps_age_available, &dgps_age, &dgps_station_id_available, &dgps_station_id);
-//  set_gps_and_dgps_fix_info(signal_quality_available, signal_quality, hdop_available, hdop, antenna_height, satellite_count_available, satellite_count, geoseparation, dgps_age_available, dgps_age, dgps_station_id_available, dgps_station_id);
+  set_gps_fix_signal_quality(signal_quality_available, signal_quality);
+  set_gps_fix_position_error(hdop_available, hdop);
+  set_gps_fix_antenna_height(antenna_height);
+  set_gps_fix_satellite_count(satellite_count_available, satellite_count, geoseparation);
+  set_gps_fix_dgps_age(dgps_age_available, dgps_age);
+  set_gps_fix_dgps_station_id(dgps_station_id_available, dgps_station_id);
 }
 
 void update_seatalk_state(char *datagram) {

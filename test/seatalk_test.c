@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../seatalk_transport_layer.h"
 #include "seatalk_transport_layer_test.h"
 #include "seatalk_datagram_test.h"
 #include "boat_status_test.h"

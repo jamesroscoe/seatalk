@@ -5,6 +5,7 @@
   #include <linux/delay.h>
 #endif
 
+#include "boat_status.h"
 #include "seatalk_command.h"
 #include "seatalk_datagram.h"
 
