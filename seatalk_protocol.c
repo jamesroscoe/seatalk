@@ -1,4 +1,6 @@
+#include "seatalk_protocol.h"
 #include "boat_status.h"
+#include "boat_sensor.h"
 #include "seatalk_datagram.h"
 
 int build_command_datagram(char *datagram) {
@@ -7,17 +9,142 @@ int build_command_datagram(char *datagram) {
   return 0;
 }
 
-int seatalk_sensor_pending(void) {
-//  return VALID_SENSOR(compass);
+#define SENSOR_PENDING(NAME, ID_NAME) if (has_##NAME##_sensor_value_to_transmit()) {\
+  *sensor_id = SENSOR_ID_##ID_NAME;\
+}
+
+int seatalk_sensor_pending(SENSOR_ID *sensor_id) {
+  SENSOR_PENDING(heading, HEADING)
+  else SENSOR_PENDING(water_speed_in_knots_times_100, WATER_SPEED)
+  else SENSOR_PENDING(apparent_wind_angle, APPARENT_WIND_ANGLE)
+  else SENSOR_PENDING(apparent_wind_speed_in_knots_times_10, APPARENT_WIND_SPEED)
+  else SENSOR_PENDING(depth_below_transducer_in_feet_times_10, DEPTH_BELOW_TRANSDUCER)
+  else SENSOR_PENDING(course_over_ground, COURSE_OVER_GROUND)
+  else SENSOR_PENDING(speed_over_ground_in_knots_times_100, SPEED_OVER_GROUND)
+  else SENSOR_PENDING(water_temperature_in_degrees_celsius_times_10, WATER_TEMPERATURE)
+  else SENSOR_PENDING(rudder_position_in_degrees_right, RUDDER_POSITION)
+  else {
+    *sensor_id = SENSOR_ID_NONE;
+  }
+  return sensor_id != SENSOR_ID_NONE;
+}
+
+int build_heading_sensor_datagram(char *datagram) {
+  int heading, rudder_position_in_degrees_right;
+  if (pop_heading_sensor_value(&heading) == 0) {
+    if (pop_rudder_position_in_degrees_right_sensor_value(&rudder_position_in_degrees_right) == 0) {
+      return build_heading_and_rudder_position(datagram, heading, 0, rudder_position_in_degrees_right);
+    } else {
+      return build_heading(datagram, heading, 0, 0);
+    }
+  }
+  return 0;
+}
+
+int build_water_speed_sensor_datagram(char *datagram) {
+  int water_speed_in_knots_times_100;
+  if (pop_water_speed_in_knots_times_100_sensor_value(&water_speed_in_knots_times_100) == 0) {
+    return build_average_water_speed(datagram, water_speed_in_knots_times_100, 0, 1, 0, 1, 0);
+  }
+  return 0;
+}
+
+int build_apparent_wind_angle_sensor_datagram(char *datagram) {
+  int apparent_wind_angle;
+  if (pop_apparent_wind_angle_sensor_value(&apparent_wind_angle) == 0) {
+    return build_apparent_wind_angle(datagram, apparent_wind_angle * 2);
+  }
+  return 0;
+}
+
+int build_apparent_wind_speed_sensor_datagram(char *datagram) {
+  int apparent_wind_speed_in_knots_times_10;
+  if (pop_apparent_wind_speed_in_knots_times_10_sensor_value(&apparent_wind_speed_in_knots_times_10)) {
+    return build_apparent_wind_speed(datagram, apparent_wind_speed_in_knots_times_10, 0);
+  }
+  return 0;
+}
+
+int build_depth_below_transducer_sensor_datagram(char *datagram) {
+  int depth_below_transducer_in_feet_times_10;
+  if (pop_depth_below_transducer_in_feet_times_10_sensor_value(&depth_below_transducer_in_feet_times_10) == 0) {
+    return build_depth_below_transducer(datagram, depth_below_transducer_in_feet_times_10, 0, 0, 0);
+  }
+  return 0;
+}
+
+int build_course_over_ground_sensor_datagram(char *datagram) {
+  int course_over_ground;
+  if (pop_course_over_ground_sensor_value(&course_over_ground) == 0) {
+    return build_course_over_ground(datagram, course_over_ground);
+  }
+  return 0;
+}
+
+int build_speed_over_ground_sensor_datagram(char *datagram) {
+  int speed_over_ground_in_knots_times_100;
+  if (pop_speed_over_ground_in_knots_times_100_sensor_value(&speed_over_ground_in_knots_times_100) == 0) {
+    return build_speed_over_ground(datagram, speed_over_ground_in_knots_times_100 / 10);
+  }
+  return 0;
+}
+
+int build_water_temperature_sensor_datagram(char *datagram) {
+  int water_temperature_in_degrees_celsius_times_10;
+  if (pop_water_temperature_in_degrees_celsius_times_10_sensor_value(&water_temperature_in_degrees_celsius_times_10) == 0) {
+    return build_precise_water_temperature(datagram, water_temperature_in_degrees_celsius_times_10);
+  }
+  return 0;
+}
+
+int build_rudder_position_sensor_datagram(char *datagram) {
+  int rudder_position_in_degrees_right, heading;
+  if (pop_rudder_position_in_degrees_right_sensor_value(&rudder_position_in_degrees_right) == 0) {
+    if (pop_heading_sensor_value(&heading) == 0) {
+      build_heading_and_rudder_position(datagram, heading, 0, rudder_position_in_degrees_right);
+    } else {
+      // no datagram for just rudder position; skip
+    }
+  }
   return 0;
 }
 
 int build_sensor_datagram(char *datagram) {
-//  if (VALID_SENSOR(compass)) {
-//    return build_heading(datagram, SENSOR_VARIABLE(compass), 0, 0);
-//  } else {
+  SENSOR_ID sensor_id;
+  if (!seatalk_sensor_pending(&sensor_id)) {
     return 0;
-//  }
+  }
+  switch (sensor_id) {
+    case SENSOR_ID_HEADING:
+      return build_heading_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_WATER_SPEED:
+      return build_water_speed_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_APPARENT_WIND_ANGLE:
+      return build_apparent_wind_angle_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_APPARENT_WIND_SPEED:
+      return build_apparent_wind_speed_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_DEPTH_BELOW_TRANSDUCER:
+      return build_depth_below_transducer_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_COURSE_OVER_GROUND:
+      return build_course_over_ground_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_SPEED_OVER_GROUND:
+      return build_speed_over_ground_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_WATER_TEMPERATURE:
+      return build_water_temperature_sensor_datagram(datagram);
+      break;
+    case SENSOR_ID_RUDDER_POSITION:
+      return build_rudder_position_sensor_datagram(datagram);
+      break;
+    default:
+      return 0;
+  }
 }
 
 int get_pending_datagram(char *datagram) {
@@ -26,9 +153,8 @@ int get_pending_datagram(char *datagram) {
     return length;
   } else if ((length = build_sensor_datagram(datagram))) {
     return length;
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 void update_depth_below_transducer(char *datagram) {

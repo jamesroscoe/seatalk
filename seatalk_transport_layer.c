@@ -135,8 +135,9 @@ void initiate_seatalk_transmitter(void) {
 
 int seatalk_can_transmit(void) {
   int will_transmit = transmit_datagram_bytes_remaining || data_enqueued;
+  SENSOR_ID pending_sensor_id;
   if (!will_transmit) {
-    will_transmit = seatalk_command_pending() || seatalk_sensor_pending();
+    will_transmit = seatalk_command_pending() || seatalk_sensor_pending(&pending_sensor_id);
   }
   return will_transmit;
 }

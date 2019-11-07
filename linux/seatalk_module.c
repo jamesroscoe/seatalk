@@ -3,6 +3,7 @@
 #include <linux/sysfs.h>
 #include "../seatalk_hardware_layer.h"
 #include "../boat_status.h"
+#include "../boat_sensor.h"
 
 // sysfs
 struct kobject *boat_kobj_ref;
@@ -85,6 +86,13 @@ int convert_AUTOPILOT_MODE_to_string(char *buf, AUTOPILOT_MODE mode) {
     default:
       return sprintf(buf, "standby");
   }
+}
+
+int convert_string_to_int(int *value_from_string, const char *buf, int count) {
+  if (sscanf(buf, "%d", value_from_string) == 1) {
+    return count;
+  }
+  return 0;
 }
 
 // status
@@ -269,19 +277,27 @@ AUTOPILOT_STATUS(mode, AUTOPILOT_MODE);
 // sensors
 #define SENSOR(NAME) static ssize_t sysfs_set_ ## NAME ## _sensor(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);\
 struct kobj_attribute NAME ## _sensor_attribute = __ATTR(NAME, 0220, NULL, sysfs_set_ ## NAME ## _sensor)
-#define IMPLEMENT_SENSOR(NAME) static ssize_t sysfs_set_ ## NAME ## _sensor(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+#define RAW_IMPLEMENT_SENSOR(NAME) static ssize_t sysfs_set_ ## NAME ## _sensor(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 
-//SENSOR(compass);
+#define BOAT_SENSOR(NAME, TYPE) SENSOR(NAME);\
+RAW_IMPLEMENT_SENSOR(NAME) {\
+  int result;\
+  TYPE value;\
+  if ((result = convert_string_to_##TYPE(&value, buf, count)) == count) {\
+    update_##NAME##_sensor(value);\
+  }\
+  return result;\
+}
 
-// implement sysfs get/set functions
-//IMPLEMENT_SENSOR(compass) {
-//  int heading;
-//  char *end_pointer;
-//  pr_info("set_compass_sensor: %s", buf);
-//  heading = simple_strtol(buf, &end_pointer, 10);
-//  set_compass_sensor(heading);
-//  return count;
-//}
+BOAT_SENSOR(heading, int);
+BOAT_SENSOR(water_speed_in_knots_times_100, int);
+BOAT_SENSOR(apparent_wind_angle, int);
+BOAT_SENSOR(apparent_wind_speed_in_knots_times_10, int);
+BOAT_SENSOR(depth_below_transducer_in_feet_times_10, int);
+BOAT_SENSOR(course_over_ground, int);
+BOAT_SENSOR(speed_over_ground_in_knots_times_100, int);
+BOAT_SENSOR(water_temperature_in_degrees_celsius_times_10, int);
+BOAT_SENSOR(rudder_position_in_degrees_right, int);
 
 void state_updated(void) {
   pr_info("New data on SeaTalk bus");
