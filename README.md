@@ -39,10 +39,11 @@ Should you need to uninstall it use:
 
     $ sudo rmmod seatalk.ko
 
-The kernel extension will add files in two directories:
+The kernel extension will add files in three directories:
 
     /sys/seatalk/sensors
     /sys/seatalk/status
+    /sys/seatalk/commands
 
-* To write a sensor value to the SeaTalk bus write its value to the appropriate file in /sys/seatalk/sensors (compass). Note that this can only be done from the root account (ie you need to use "sudo -i" or your program needs to be running as a daemon).
+* To write a sensor value to the SeaTalk bus write its value to the appropriate file in /sys/seatalk/sensors (heading). Note that this can only be done from the root account (ie you need to use "sudo -i" or your program needs to be running as a daemon).
 * To read a status value that has been broadcast on the SeaTalk bus read it from the appropriate file in /sys/seatalk/status (autopilot).

@@ -114,19 +114,23 @@ typedef struct {
 } GPS_FIX_QUALITY;
 
 int get_gps_fix_quality(GPS_FIX_QUALITY *fix_quality);
-void set_gps_fix_signal_quality(int signal_quality_valid, int signal_quality);
-void set_gps_fix_position_error(int position_eror_valid, int position_error);
+void set_gps_fix_signal_quality(int signal_quality);
+void set_gps_fix_position_error(int position_error);
 void set_gps_fix_antenna_height(int antenna_height);
-void set_gps_fix_satellite_count(int satellite_count_valid, int satellite_count, int geoseparation);
-void set_gps_fix_dgps_age(int dgps_age_valid, int dgps_age);
-void set_gps_fix_dgps_station_id(int dgps_station_id_valid, int dgps_station_id);
+void set_gps_fix_satellite_count(int satellite_count, int geoseparation);
+void set_gps_fix_dgps_age(int dgps_age);
+void set_gps_fix_dgps_station_id(int dgps_station_id);
 
 typedef struct {
+  int waypoint_name_valid;
   char waypoint_name_last_4[5];
+  int waypoint_position_valid;
   POSITION waypoint_position;
+  int waypoint_bearing_and_range_valid;
   int waypoint_bearing;
   ANGLE_REFERENCE waypoint_bearing_reference;
-  int waypoint_range_in_nautical_miles_times_100;;
+  int waypoint_range_in_nautical_miles_times_100;
+  int cross_track_error_valid;
   int cross_track_error_in_nautical_miles_times_100;
 } NAVIGATION_STATUS;
 

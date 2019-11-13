@@ -3,9 +3,11 @@
 #include "boat_status.h"
 #include "settings.h"
 
+int initialized = 0;
+
 #define STATUS_VARIABLE(NAME) status_ ## NAME
 #define STATUS_EXPIRY_TIME(NAME) status_##NAME##_expiry
-#define VALID_STATUS(NAME) timeout_still_valid(STATUS_EXPIRY_TIME(NAME))
+#define VALID_STATUS(NAME) (initialized && timeout_still_valid(STATUS_EXPIRY_TIME(NAME)))
 #define SET_STATUS_EXPIRY(NAME, VALUE) STATUS_EXPIRY_TIME(NAME) = VALUE
 #define VALIDATE_STATUS(NAME) restart_timeout(&STATUS_EXPIRY_TIME(NAME), STATUS_TIME_TO_LIVE)
 #define INVALIDATE_STATUS(NAME) invalidate_timeout(&STATUS_EXPIRY_TIME(NAME))
@@ -63,6 +65,7 @@ DEFINE_STATUS_EXPIRY(gmt_time);
 DEFINE_READ_ONLY_STATUS(autopilot, AUTOPILOT_STATUS);
 
 void initialize_status(void) {
+  initialized = 1;
   INVALIDATE_STATUS(active_alarms);
   INVALIDATE_STATUS(depth_below_transducer_in_feet_times_10);
   INVALIDATE_STATUS(engine_single);
@@ -87,77 +90,20 @@ void initialize_status(void) {
   INVALIDATE_STATUS(position_longitude);
   INVALIDATE_STATUS(compass_variation_in_degrees_west);
   INVALIDATE_STATUS(gps_fix_quality);
+  STATUS_VARIABLE(gps_fix_quality).signal_quality_valid = 0;
+  STATUS_VARIABLE(gps_fix_quality).position_error_valid = 0;
+  STATUS_VARIABLE(gps_fix_quality).satellite_count_valid = 0;
+  STATUS_VARIABLE(gps_fix_quality).dgps_age_valid = 0;
+  STATUS_VARIABLE(gps_fix_quality).dgps_station_id_valid = 0;
   INVALIDATE_STATUS(navigation);
+  STATUS_VARIABLE(navigation).waypoint_name_valid = 0;
+  STATUS_VARIABLE(navigation).waypoint_position_valid = 0;
+  STATUS_VARIABLE(navigation).waypoint_bearing_and_range_valid = 0;
+  STATUS_VARIABLE(navigation).cross_track_error_valid = 0;
   INVALIDATE_STATUS(gmt_date);
   INVALIDATE_STATUS(gmt_time);
   INVALIDATE_STATUS(autopilot);
 }
-
-//int copy_string(char *dest, char *source, int max_length) {
-//  #ifdef TESTING
-//    strcpy(dest, source);
-//    return strlen(dest);
-//  #else
-//    return strscpy(dest, source, max_length);
-//  #endif
-//}
-
-//void clear_string(char *s) {
-//  s[0] = 0;
-//}
-
-//int flag_value(int flag) {
-//  return flag ? 1 : 0;
-//}
-
-//int itoa(char* buf, int val)
-//{
-//    const unsigned int radix = 10;
-//
-//    char* p;
-//    unsigned int a;        //every digit
-//    int len;
-//    char* b;            //start of the digit char
-//    char temp;
-//    unsigned int u;
-//
-//    p = buf;
-//
-//    if (val < 0)
-//    {
-//        *p++ = '-';
-//        val = 0 - val;
-//    }
-//    u = (unsigned int)val;
-//
-//    b = p;
-//
-//    do
-//    {
-//        a = u % radix;
-//        u /= radix;
-//
-//        *p++ = a + '0';
-//
-//    } while (u > 0);
-//
-//    len = (int)(p - buf);
-//
-//    *p-- = 0;
-//
-//    //swap
-//    do
-//    {
-//        temp = *p;
-//        *p = *b;
-//        *b = temp;
-//        --p;
-//        ++b;
-//
-//    } while (b < p);
-//
-//    return len;
-//}
 
 int get_engine_status(ENGINE_ID engine_id, ENGINE_STATUS *engine_status) {
   switch (engine_id) {
@@ -220,7 +166,7 @@ void set_position_latitude(LATITUDE_HEMISPHERE hemisphere, int degrees, int minu
   STATUS_VARIABLE(position).hemisphere_latitude = hemisphere;
   STATUS_VARIABLE(position).degrees_latitude = degrees;
   STATUS_VARIABLE(position).minutes_latitude_times_1000 = minutes_times_1000;
-  VALIDATE_STATUS(position_longitude);
+  VALIDATE_STATUS(position_latitude);
 }
 
 void set_position_longitude(LONGITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_1000) {
@@ -230,15 +176,15 @@ void set_position_longitude(LONGITUDE_HEMISPHERE hemisphere, int degrees, int mi
   VALIDATE_STATUS(position_longitude);
 }
 
-void set_gps_fix_signal_quality(int signal_quality_valid, int signal_quality) {
+void set_gps_fix_signal_quality(int signal_quality) {
   VALIDATE_STATUS(gps_fix_quality);
-  STATUS_VARIABLE(gps_fix_quality).signal_quality_valid = signal_quality_valid;
+  STATUS_VARIABLE(gps_fix_quality).signal_quality_valid = 1;
   STATUS_VARIABLE(gps_fix_quality).signal_quality = signal_quality;
 }
 
-void set_gps_fix_position_error(int position_error_valid, int position_error) {
+void set_gps_fix_position_error(int position_error) {
   VALIDATE_STATUS(gps_fix_quality);
-  STATUS_VARIABLE(gps_fix_quality).position_error_valid = position_error_valid;
+  STATUS_VARIABLE(gps_fix_quality).position_error_valid = 1;
   STATUS_VARIABLE(gps_fix_quality).position_error = position_error;
 }
 
@@ -247,28 +193,29 @@ void set_gps_fix_antenna_height(int antenna_height) {
   STATUS_VARIABLE(gps_fix_quality).antenna_height = antenna_height;
 }
 
-void set_gps_fix_satellite_count(int satellite_count_valid, int satellite_count, int geoseparation) {
+void set_gps_fix_satellite_count(int satellite_count, int geoseparation) {
   VALIDATE_STATUS(gps_fix_quality);
-  STATUS_VARIABLE(gps_fix_quality).satellite_count_valid = satellite_count_valid;
+  STATUS_VARIABLE(gps_fix_quality).satellite_count_valid = 1;
   STATUS_VARIABLE(gps_fix_quality).satellite_count = satellite_count;
   STATUS_VARIABLE(gps_fix_quality).geoseparation = geoseparation;
 }
 
-void set_gps_fix_dgps_age(int dgps_age_valid, int dgps_age) {
+void set_gps_fix_dgps_age(int dgps_age) {
   VALIDATE_STATUS(gps_fix_quality);
-  STATUS_VARIABLE(gps_fix_quality).dgps_age_valid = dgps_age_valid;
+  STATUS_VARIABLE(gps_fix_quality).dgps_age_valid = 1;
   STATUS_VARIABLE(gps_fix_quality).dgps_age = dgps_age;
 }
 
-void set_gps_fix_dgps_station_id(int dgps_station_id_valid, int dgps_station_id) {
+void set_gps_fix_dgps_station_id(int dgps_station_id) {
   VALIDATE_STATUS(gps_fix_quality);
-  STATUS_VARIABLE(gps_fix_quality).dgps_station_id_valid = dgps_station_id_valid;
+  STATUS_VARIABLE(gps_fix_quality).dgps_station_id_valid = 1;
   STATUS_VARIABLE(gps_fix_quality).dgps_station_id = dgps_station_id;
 }
 
 void set_navigation_waypoint_name(char *name) {
   int i;
   VALIDATE_STATUS(navigation);
+  STATUS_VARIABLE(navigation).waypoint_name_valid = 0;
   for (i = 0; i <= 4; i++) {
     STATUS_VARIABLE(navigation).waypoint_name_last_4[i] = name[i];
   }
@@ -276,6 +223,7 @@ void set_navigation_waypoint_name(char *name) {
 
 void set_navigation_waypoint_position_latitude(LATITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_1000) {
   VALIDATE_STATUS(navigation);
+  STATUS_VARIABLE(navigation).waypoint_position_valid = 1;
   STATUS_VARIABLE(navigation).waypoint_position.hemisphere_latitude = hemisphere;
   STATUS_VARIABLE(navigation).waypoint_position.degrees_latitude = degrees;
   STATUS_VARIABLE(navigation).waypoint_position.minutes_latitude_times_1000 = minutes_times_1000;
@@ -283,6 +231,7 @@ void set_navigation_waypoint_position_latitude(LATITUDE_HEMISPHERE hemisphere, i
 
 void set_navigation_waypoint_position_longitude(LONGITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_1000) {
   VALIDATE_STATUS(navigation);
+  STATUS_VARIABLE(navigation).waypoint_position_valid = 1;
   STATUS_VARIABLE(navigation).waypoint_position.hemisphere_longitude = hemisphere;
   STATUS_VARIABLE(navigation).waypoint_position.degrees_longitude = degrees;
   STATUS_VARIABLE(navigation).waypoint_position.minutes_longitude_times_1000 = minutes_times_1000;
@@ -290,6 +239,7 @@ void set_navigation_waypoint_position_longitude(LONGITUDE_HEMISPHERE hemisphere,
 
 void set_navigation_waypoint_bearing_and_range_in_nautical_miles_times_100(int degrees, int nautical_miles_times_100) {
   VALIDATE_STATUS(navigation);
+  STATUS_VARIABLE(navigation).waypoint_bearing_and_range_valid = 1;
   STATUS_VARIABLE(navigation).waypoint_bearing = degrees;
   STATUS_VARIABLE(navigation).waypoint_range_in_nautical_miles_times_100 = nautical_miles_times_100;
 }
@@ -301,6 +251,7 @@ void set_navigation_waypoint_bearing_reference(ANGLE_REFERENCE angle_reference) 
 
 void set_navigation_cross_track_error_in_nautical_miles_times_100(int nautical_miles_times_100) {
   VALIDATE_STATUS(navigation);
+  STATUS_VARIABLE(navigation).cross_track_error_valid = 1;
   STATUS_VARIABLE(navigation).cross_track_error_in_nautical_miles_times_100 = nautical_miles_times_100;
 }
 

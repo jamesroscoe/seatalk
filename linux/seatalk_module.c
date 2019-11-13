@@ -4,21 +4,8 @@
 #include "../seatalk_hardware_layer.h"
 #include "../boat_status.h"
 #include "../boat_sensor.h"
-
-// sysfs
-struct kobject *boat_kobj_ref;
-struct kobject *sensors_kobj_ref;
-struct kobject *commands_kobj_ref;
-struct kobject *status_kobj_ref;
-struct kobject *alarms_kobj_ref;
-struct kobject *engine_single_kobj_ref;
-struct kobject *engine_port_kobj_ref;
-struct kobject *engine_startboard_kobj_ref;
-struct kobject *position_kobj_ref;
-struct kobject *fix_quality_kobj_ref;
-struct kobject *navigation_kobj_ref;
-struct kobject *gmt_date_and_time_kobj_ref;
-struct kobject *autopilot_kobj_ref;
+#include "../seatalk_datagram.h"
+#include "../seatalk_command.h"
 
 // utility
 int flag_display(char *buf, int value) {
@@ -214,6 +201,7 @@ BOAT_STATUS(speed_over_ground_in_knots_times_100, int);
 BOAT_STATUS(trip_mileage_in_nautical_miles_times_100, int);
 BOAT_STATUS(total_mileage_in_nautical_miles_times_10, int);
 BOAT_STATUS(water_temperature_in_degrees_celsius_times_10, int);
+BOAT_STATUS(compass_variation_in_degrees_west, int);
 
 ALARM_STATUS(shallow_water, SHALLOW_WATER);
 ALARM_STATUS(deep_water, DEEP_WATER);
@@ -275,12 +263,12 @@ AUTOPILOT_STATUS(target_heading, int);
 AUTOPILOT_STATUS(mode, AUTOPILOT_MODE);
 
 // sensors
-#define SENSOR(NAME) static ssize_t sysfs_set_ ## NAME ## _sensor(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);\
-struct kobj_attribute NAME ## _sensor_attribute = __ATTR(NAME, 0220, NULL, sysfs_set_ ## NAME ## _sensor)
-#define RAW_IMPLEMENT_SENSOR(NAME) static ssize_t sysfs_set_ ## NAME ## _sensor(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+#define SENSOR(PARENT, NAME) static ssize_t sysfs_set_ ## PARENT ## _ ## NAME ## _sensor(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);\
+struct kobj_attribute PARENT ## _ ## NAME ## _attribute = __ATTR(NAME, 0220, NULL, sysfs_set_ ## PARENT ## _ ## NAME ## _sensor)
+#define RAW_IMPLEMENT_SENSOR(PARENT, NAME) static ssize_t sysfs_set_ ## PARENT ## _ ## NAME ## _sensor(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 
-#define BOAT_SENSOR(NAME, TYPE) SENSOR(NAME);\
-RAW_IMPLEMENT_SENSOR(NAME) {\
+#define BOAT_SENSOR(NAME, TYPE) SENSOR(sensors, NAME);\
+RAW_IMPLEMENT_SENSOR(sensors, NAME) {\
   int result;\
   TYPE value;\
   if ((result = convert_string_to_##TYPE(&value, buf, count)) == count) {\
@@ -299,126 +287,326 @@ BOAT_SENSOR(speed_over_ground_in_knots_times_100, int);
 BOAT_SENSOR(water_temperature_in_degrees_celsius_times_10, int);
 BOAT_SENSOR(rudder_position_in_degrees_right, int);
 
-void state_updated(void) {
-  pr_info("New data on SeaTalk bus");
+// commands
+
+#define COMMAND(PARENT, NAME) static ssize_t sysfs_execute_ ## PARENT ## _ ## NAME ## _command(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);\
+struct kobj_attribute PARENT ## _ ## NAME ## _attribute = __ATTR(NAME, 0220, NULL, sysfs_execute_ ## PARENT ## _ ## NAME ## _command);\
+static ssize_t sysfs_execute_ ## PARENT ## _ ## NAME ## _command(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+
+#define COMMAND_IS(NAME, ID_NAME) if (strcmp(buf, #NAME) == 0) {\
+  command = ST_AUTOPILOT_COMMAND_ ## ID_NAME;\
 }
 
+COMMAND(commands, autopilot) {
+  ST_AUTOPILOT_COMMAND command;
+  COMMAND_IS(auto, AUTO)
+  else COMMAND_IS(standby, STANDBY)
+  else COMMAND_IS(track, TRACK)
+  else COMMAND_IS(disp, DISP)
+  else COMMAND_IS(turn_left_1, TURN_LEFT_1)
+  else COMMAND_IS(turn_left_10, TURN_LEFT_10)
+  else COMMAND_IS(turn_right_1, TURN_RIGHT_1)
+  else COMMAND_IS(turn_right_10, TURN_RIGHT_10)
+  else COMMAND_IS(decrease_gain, DECREASE_GAIN)
+  else COMMAND_IS(increase_gain, INCREASE_GAIN)
+  else COMMAND_IS(tack_left, TACK_LEFT)
+  else COMMAND_IS(tack_right, TACK_RIGHT)
+  else COMMAND_IS(wind_mode, WIND_MODE)
+  else COMMAND_IS(track_mode, TRACK_MODE)
+  else COMMAND_IS(toggle_response_level, TOGGLE_RESPONSE_LEVEL)
+  else COMMAND_IS(return_to_course, RETURN_TO_COURSE)
+  else COMMAND_IS(enter_compass_calibration_mode, ENTER_COMPASS_CALIBRATION_MODE)
+  else COMMAND_IS(press_track_longer, PRESS_TRACK_LONGER)
+  else COMMAND_IS(press_disp_longer, PRESS_DISP_LONGER)
+  else COMMAND_IS(press_left_1_longer, PRESS_LEFT_1_LONGER)
+  else COMMAND_IS(press_left_10_longer, PRESS_LEFT_10_LONGER)
+  else COMMAND_IS(press_right_1_longer, PRESS_RIGHT_1_LONGER)
+  else COMMAND_IS(press_right_10_longer, PRESS_RIGHT_10_LONGER)
+  else COMMAND_IS(return_to_wind_angle, RETURN_TO_WIND_ANGLE)
+  else COMMAND_IS(press_left_10_right_10_longer, PRESS_LEFT_10_RIGHT_10_LONGER)
+  else COMMAND_IS(enter_rudder_gain_mode, ENTER_RUDDER_GAIN_MODE)
+  else COMMAND_IS(hold_left_1, HOLD_LEFT_1)
+  else COMMAND_IS(hold_left_10, HOLD_LEFT_10)
+  else COMMAND_IS(hold_right_1, HOLD_RIGHT_1)
+  else COMMAND_IS(hold_right_10, HOLD_RIGHT_10)
+  else COMMAND_IS(release_held_key, RELEASE_HELD_KEY)
+  else {
+    return 0;
+  }
+  return autopilot_remote_keystroke(command);
+}
+
+//void state_updated(void) {
+//  pr_info("New data on SeaTalk bus");
+//}
+
+// sysfs
+#define DIRECTORY(PARENT, NAME) struct kobject *PARENT ## _ ## NAME ## _kobj_ref\
+
+#define ROOT_DIRECTORY() DIRECTORY(boat, sensors);\
+DIRECTORY(boat, commands);\
+DIRECTORY(boat, status)
+
+#define STATUS_DIRECTORY() DIRECTORY(boat_status, alarms);\
+DIRECTORY(boat_status, engine_single);\
+DIRECTORY(boat_status, engine_port);\
+DIRECTORY(boat_status, engine_starboard);\
+DIRECTORY(boat_status, position);\
+DIRECTORY(boat_status, fix_quality);\
+DIRECTORY(boat_status, navigation);\
+DIRECTORY(boat_status_navigation, waypoint_position);\
+DIRECTORY(boat_status, gmt_date_and_time);\
+DIRECTORY(boat_status, autopilot)
+
+#define CREATE_VDIR(PARENT, NAME) PARENT ## _ ## NAME ## _kobj_ref = kobject_create_and_add(#NAME, PARENT ## _kobj_ref)
+#define CLEAN_VDIR(PARENT, NAME) kobject_put(PARENT ## _ ## NAME ## _kobj_ref)
+#define VFILE(STATUS_SENSOR_COMMAND, PARENT, NAME) if (sysfs_create_file(STATUS_SENSOR_COMMAND ## _ ## PARENT ## _kobj_ref, &PARENT ## _ ## NAME ## _attribute.attr)) {\
+  pr_info("Unable to create sysfs file for " #PARENT "_" #NAME);\
+  goto clean_ ## PARENT ## _ ## NAME;\
+}
+
+#define STATUS_VFILE(NAME) VFILE(boat, status, NAME)
+#define ALARM_VFILE(NAME) VFILE(boat_status, alarms, NAME)
+#define ENGINE_VFILE(NAME) VFILE(boat_status, engine_single, NAME);\
+VFILE(boat_status, engine_port, NAME);\
+VFILE(boat_status, engine_starboard, NAME)
+
+#define POSITION_VFILE(NAME) VFILE(boat_status, position, NAME)
+#define FIX_QUALITY_VFILE(NAME) VFILE(boat_status, fix_quality, NAME)
+#define NAVIGATION_VFILE(NAME) VFILE(boat_status, navigation, NAME)
+#define NAVIGATION_POSITION_VFILE(NAME) VFILE(boat_status, navigation_waypoint_position, NAME)
+#define GMT_DATE_AND_TIME_VFILE(NAME) VFILE(boat_status, gmt_date_and_time, NAME)
+#define AUTOPILOT_VFILE(NAME) VFILE(boat_status, autopilot, NAME)
+#define SENSOR_VFILE(NAME) VFILE(boat, sensors, NAME)
+#define COMMAND_VFILE(NAME) VFILE(boat, commands, NAME)
+
+#define RAW_CLEAN_VFILE(STATUS_SENSOR_COMMAND, PARENT, NAME) sysfs_remove_file(STATUS_SENSOR_COMMAND ## _ ## PARENT ## _kobj_ref, &PARENT ## _ ## NAME ##_attribute.attr)
+#define CLEAN_VFILE(STATUS_SENSOR_COMMAND, PARENT, NAME) clean_ ## PARENT ## _ ## NAME:\
+  RAW_CLEAN_VFILE(STATUS_SENSOR_COMMAND, PARENT, NAME)
+
+#define CLEAN_STATUS_VFILE(NAME) CLEAN_VFILE(boat, status, NAME)
+#define CLEAN_ALARM_VFILE(NAME) CLEAN_VFILE(boat_status, alarms, NAME)
+#define CLEAN_ENGINE_VFILE(NAME) CLEAN_VFILE(boat_status, engine_starboard, NAME);\
+CLEAN_VFILE(boat_status, engine_port, NAME);\
+CLEAN_VFILE(boat_status, engine_single, NAME)
+
+#define CLEAN_POSITION_VFILE(NAME) CLEAN_VFILE(boat_status, position, NAME)
+#define CLEAN_FIX_QUALITY_VFILE(NAME) CLEAN_VFILE(boat_status, fix_quality, NAME)
+#define CLEAN_NAVIGATION_VFILE(NAME) CLEAN_VFILE(boat_status, navigation, NAME)
+#define CLEAN_NAVIGATION_POSITION_VFILE(NAME) CLEAN_VFILE(boat_status, navigation_waypoint_position, NAME)
+#define CLEAN_GMT_DATE_AND_TIME_VFILE(NAME) CLEAN_VFILE(boat_status, gmt_date_and_time, NAME)
+#define CLEAN_AUTOPILOT_VFILE(NAME) CLEAN_VFILE(boat_status, autopilot, NAME)
+#define CLEAN_SENSOR_VFILE(NAME) CLEAN_VFILE(boat, sensors, NAME)
+#define CLEAN_COMMAND_VFILE(NAME) CLEAN_VFILE(boat, commands, NAME)
+
+struct kobject *boat_kobj_ref;
+
+ROOT_DIRECTORY();
+STATUS_DIRECTORY();
+
+#define VFILES() STATUS_VFILE(depth_below_transducer_in_feet_times_10);\
+  STATUS_VFILE(apparent_wind_angle);\
+  STATUS_VFILE(apparent_wind_speed_in_knots_times_10);\
+  STATUS_VFILE(turn_direction);\
+  STATUS_VFILE(heading);\
+  STATUS_VFILE(water_speed_in_knots_times_100);\
+  STATUS_VFILE(average_water_speed_in_knots_times_100);\
+  STATUS_VFILE(rudder_position_in_degrees_right);\
+  STATUS_VFILE(course_over_ground);\
+  STATUS_VFILE(speed_over_ground_in_knots_times_100);\
+  STATUS_VFILE(trip_mileage_in_nautical_miles_times_100);\
+  STATUS_VFILE(total_mileage_in_nautical_miles_times_10);\
+  STATUS_VFILE(water_temperature_in_degrees_celsius_times_10);\
+  STATUS_VFILE(compass_variation_in_degrees_west);\
+\
+  ALARM_VFILE(shallow_water);\
+  ALARM_VFILE(deep_water);\
+  ALARM_VFILE(anchor);\
+  ALARM_VFILE(apparent_wind_angle_low);\
+  ALARM_VFILE(apparent_wind_angle_high);\
+  ALARM_VFILE(apparent_wind_speed_low);\
+  ALARM_VFILE(apparent_wind_speed_high);\
+  ALARM_VFILE(true_wind_angle_low);\
+  ALARM_VFILE(true_wind_angle_high);\
+  ALARM_VFILE(true_wind_speed_low);\
+  ALARM_VFILE(true_wind_speed_high);\
+  ALARM_VFILE(autopilot_off_course);\
+  ALARM_VFILE(autopilot_wind_shift);\
+\
+  ENGINE_VFILE(rpm);\
+  ENGINE_VFILE(pitch_percent);\
+\
+  POSITION_VFILE(hemisphere_latitude);\
+  POSITION_VFILE(degrees_latitude);\
+  POSITION_VFILE(minutes_latitude_times_1000);\
+  POSITION_VFILE(hemisphere_longitude);\
+  POSITION_VFILE(degrees_longitude);\
+  POSITION_VFILE(minutes_longitude_times_1000);\
+\
+  FIX_QUALITY_VFILE(signal_quality);\
+  FIX_QUALITY_VFILE(position_error);\
+  FIX_QUALITY_VFILE(antenna_height);\
+  FIX_QUALITY_VFILE(satellite_count);\
+  FIX_QUALITY_VFILE(geoseparation);\
+  FIX_QUALITY_VFILE(dgps_age);\
+  FIX_QUALITY_VFILE(dgps_station_id);\
+\
+  NAVIGATION_VFILE(waypoint_name_last_4);\
+  NAVIGATION_POSITION_VFILE(hemisphere_latitude);\
+  NAVIGATION_POSITION_VFILE(degrees_latitude);\
+  NAVIGATION_POSITION_VFILE(minutes_latitude_times_1000);\
+  NAVIGATION_POSITION_VFILE(hemisphere_longitude);\
+  NAVIGATION_POSITION_VFILE(degrees_longitude);\
+  NAVIGATION_POSITION_VFILE(minutes_longitude_times_1000);\
+  NAVIGATION_VFILE(waypoint_bearing);\
+  NAVIGATION_VFILE(waypoint_bearing_reference);\
+  NAVIGATION_VFILE(waypoint_range_in_nautical_miles_times_100);\
+  NAVIGATION_VFILE(cross_track_error_in_nautical_miles_times_100);\
+\
+  GMT_DATE_AND_TIME_VFILE(year);\
+  GMT_DATE_AND_TIME_VFILE(month);\
+  GMT_DATE_AND_TIME_VFILE(day);\
+  GMT_DATE_AND_TIME_VFILE(hour);\
+  GMT_DATE_AND_TIME_VFILE(minute);\
+  GMT_DATE_AND_TIME_VFILE(second);\
+\
+  AUTOPILOT_VFILE(target_heading);\
+  AUTOPILOT_VFILE(mode);\
+\
+  SENSOR_VFILE(heading);\
+  SENSOR_VFILE(water_speed_in_knots_times_100);\
+  SENSOR_VFILE(apparent_wind_angle);\
+  SENSOR_VFILE(apparent_wind_speed_in_knots_times_10);\
+  SENSOR_VFILE(depth_below_transducer_in_feet_times_10);\
+  SENSOR_VFILE(course_over_ground);\
+  SENSOR_VFILE(speed_over_ground_in_knots_times_100);\
+  SENSOR_VFILE(water_temperature_in_degrees_celsius_times_10);\
+  SENSOR_VFILE(rudder_position_in_degrees_right);\
+\
+  COMMAND_VFILE(autopilot)
+
+#undef DIRECTORY
+#define DIRECTORY(PARENT, NAME) PARENT ## _ ## NAME ## _kobj_ref = kobject_create_and_add(#NAME, PARENT ## _kobj_ref)
+
 static int init_sysfs(void) {
-  boat_kobj_ref = kobject_create_and_add("boat", NULL);
-  sensors_kobj_ref = kobject_create_and_add("sensors", boat_kobj_ref);
-  status_kobj_ref = kobject_create_and_add("status", boat_kobj_ref);
-//  autopilot_status_kobj_ref = kobject_create_and_add("autopilot", status_kobj_ref);
-//  alarms_kobj_ref = kobject_create_and_add("alarms", seatalk_kobj_ref);
-//  if (sysfs_create_file(sensors_kobj_ref, &compass_sensor_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for compass sensor");
-//    goto clean_compass_sensor;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_compass_heading_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot compass heading");
-//    goto clean_autopilot_compass_heading;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_turning_direction_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot turning direction");
-//    goto clean_autopilot_turning_direction;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_target_heading_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot target heading");
-//    goto clean_autopilot_target_heading;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_mode_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot mode");
-//    goto clean_autopilot_mode;
-//  }
-//  if (sysfs_create_file(alarms_kobj_ref, &alarms_autopilot_off_course_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot off course alarm");
-//    goto clean_autopilot_off_course_alarm;
-//  }
-//  if (sysfs_create_file(alarms_kobj_ref, &alarms_autopilot_wind_shift_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot wind shift alarm");
-//    goto clean_autopilot_wind_shift_alarm;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_rudder_position_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot rudder position");
-//    goto clean_autopilot_rudder_position;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_heading_display_off_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot heading display off");
-//    goto clean_autopilot_heading_display_off;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_no_data_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot no data");
-//    goto clean_autopilot_no_data;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_large_xte_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot large xte");
-//    goto clean_autopilot_large_xte;
-//  }
-//  if (sysfs_create_file(autopilot_status_kobj_ref, &autopilot_auto_rel_attribute.attr)) {
-//    pr_info("Unable to create sysfs file for autopilot auto rel");
-//    goto clean_autopilot_auto_rel;
-//  }
+  boat_kobj_ref = kobject_create_and_add("seatalk", NULL);
+  ROOT_DIRECTORY();
+  STATUS_DIRECTORY();
+  VFILES();
+
   return 0;
 
-//clean_autopilot_auto_rel:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_auto_rel_attribute.attr);
+  CLEAN_COMMAND_VFILE(autopilot);
 
-//clean_autopilot_large_xte:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_large_xte_attribute.attr);
+  CLEAN_SENSOR_VFILE(rudder_position_in_degrees_right);
+  CLEAN_SENSOR_VFILE(water_temperature_in_degrees_celsius_times_10);
+  CLEAN_SENSOR_VFILE(speed_over_ground_in_knots_times_100);
+  CLEAN_SENSOR_VFILE(course_over_ground);
+  CLEAN_SENSOR_VFILE(depth_below_transducer_in_feet_times_10);
+  CLEAN_SENSOR_VFILE(apparent_wind_speed_in_knots_times_10);
+  CLEAN_SENSOR_VFILE(apparent_wind_angle);
+  CLEAN_SENSOR_VFILE(water_speed_in_knots_times_100);
+  CLEAN_SENSOR_VFILE(heading);
 
-//clean_autopilot_no_data:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_no_data_attribute.attr);
+  CLEAN_AUTOPILOT_VFILE(mode);
+  CLEAN_AUTOPILOT_VFILE(target_heading);
 
-//clean_autopilot_heading_display_off:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_heading_display_off_attribute.attr);
+  CLEAN_GMT_DATE_AND_TIME_VFILE(second);
+  CLEAN_GMT_DATE_AND_TIME_VFILE(minute);
+  CLEAN_GMT_DATE_AND_TIME_VFILE(hour);
+  CLEAN_GMT_DATE_AND_TIME_VFILE(day);
+  CLEAN_GMT_DATE_AND_TIME_VFILE(month);
+  CLEAN_GMT_DATE_AND_TIME_VFILE(year);
 
-//clean_autopilot_rudder_position:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_rudder_position_attribute.attr);
+  CLEAN_NAVIGATION_VFILE(cross_track_error_in_nautical_miles_times_100);
+  CLEAN_NAVIGATION_VFILE(waypoint_range_in_nautical_miles_times_100);
+  CLEAN_NAVIGATION_VFILE(waypoint_bearing_reference);
+  CLEAN_NAVIGATION_VFILE(waypoint_bearing);
+  CLEAN_NAVIGATION_POSITION_VFILE(minutes_longitude_times_1000);
+  CLEAN_NAVIGATION_POSITION_VFILE(degrees_longitude);
+  CLEAN_NAVIGATION_POSITION_VFILE(hemisphere_longitude);
+  CLEAN_NAVIGATION_POSITION_VFILE(minutes_latitude_times_1000);
+  CLEAN_NAVIGATION_POSITION_VFILE(degrees_latitude);
+  CLEAN_NAVIGATION_POSITION_VFILE(hemisphere_latitude);
+  CLEAN_NAVIGATION_VFILE(waypoint_name_last_4);
 
-//clean_autopilot_wind_shift_alarm:
-//  sysfs_remove_file(alarms_kobj_ref, &alarms_autopilot_wind_shift_attribute.attr);
+  CLEAN_FIX_QUALITY_VFILE(dgps_station_id);
+  CLEAN_FIX_QUALITY_VFILE(dgps_age);
+  CLEAN_FIX_QUALITY_VFILE(geoseparation);
+  CLEAN_FIX_QUALITY_VFILE(satellite_count);
+  CLEAN_FIX_QUALITY_VFILE(antenna_height);
+  CLEAN_FIX_QUALITY_VFILE(position_error);
+  CLEAN_FIX_QUALITY_VFILE(signal_quality);
 
-//clean_autopilot_off_course_alarm:
-//  sysfs_remove_file(alarms_kobj_ref, &alarms_autopilot_off_course_attribute.attr);
+  CLEAN_POSITION_VFILE(minutes_longitude_times_1000);
+  CLEAN_POSITION_VFILE(degrees_longitude);
+  CLEAN_POSITION_VFILE(hemisphere_longitude);
+  CLEAN_POSITION_VFILE(minutes_latitude_times_1000);
+  CLEAN_POSITION_VFILE(degrees_latitude);
+  CLEAN_POSITION_VFILE(hemisphere_latitude);
 
-//clean_autopilot_mode:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_mode_attribute.attr);
+  CLEAN_ENGINE_VFILE(pitch_percent);
+  CLEAN_ENGINE_VFILE(rpm);
 
-//clean_autopilot_target_heading:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_target_heading_attribute.attr);
+  CLEAN_ALARM_VFILE(autopilot_wind_shift);
+  CLEAN_ALARM_VFILE(autopilot_off_course);
+  CLEAN_ALARM_VFILE(true_wind_speed_high);
+  CLEAN_ALARM_VFILE(true_wind_speed_low);
+  CLEAN_ALARM_VFILE(true_wind_angle_high);
+  CLEAN_ALARM_VFILE(true_wind_angle_low);
+  CLEAN_ALARM_VFILE(apparent_wind_speed_high);
+  CLEAN_ALARM_VFILE(apparent_wind_speed_low);
+  CLEAN_ALARM_VFILE(apparent_wind_angle_high);
+  CLEAN_ALARM_VFILE(apparent_wind_angle_low);
+  CLEAN_ALARM_VFILE(anchor);
+  CLEAN_ALARM_VFILE(deep_water);
+  CLEAN_ALARM_VFILE(shallow_water);
 
-//clean_autopilot_turning_direction:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_turning_direction_attribute.attr);
+  CLEAN_STATUS_VFILE(compass_variation_in_degrees_west);
+  CLEAN_STATUS_VFILE(water_temperature_in_degrees_celsius_times_10);
+  CLEAN_STATUS_VFILE(total_mileage_in_nautical_miles_times_10);
+  CLEAN_STATUS_VFILE(trip_mileage_in_nautical_miles_times_100);
+  CLEAN_STATUS_VFILE(speed_over_ground_in_knots_times_100);
+  CLEAN_STATUS_VFILE(course_over_ground);
+  CLEAN_STATUS_VFILE(rudder_position_in_degrees_right);
+  CLEAN_STATUS_VFILE(average_water_speed_in_knots_times_100);
+  CLEAN_STATUS_VFILE(water_speed_in_knots_times_100);
+  CLEAN_STATUS_VFILE(heading);
+  CLEAN_STATUS_VFILE(turn_direction);
+  CLEAN_STATUS_VFILE(apparent_wind_speed_in_knots_times_10);
+  CLEAN_STATUS_VFILE(apparent_wind_angle);
+//  CLEAN_STATUS_VFILE(distance_units);
+  CLEAN_STATUS_VFILE(depth_below_transducer_in_feet_times_10);
 
-//clean_autopilot_compass_heading:
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_compass_heading_attribute.attr);
-
-//clean_compass_sensor:
-//  sysfs_remove_file(sensors_kobj_ref, &compass_sensor_attribute.attr);
-//  kobject_put(alarms_kobj_ref);
-//  kobject_put(autopilot_status_kobj_ref);
-  kobject_put(status_kobj_ref);
-  kobject_put(sensors_kobj_ref);
+  CLEAN_VDIR(boat_status, autopilot);
+  CLEAN_VDIR(boat_status, gmt_date_and_time);
+  CLEAN_VDIR(boat_status_navigation, waypoint_position);
+  CLEAN_VDIR(boat_status, navigation);
+  CLEAN_VDIR(boat_status, fix_quality);
+  CLEAN_VDIR(boat_status, position);
+  CLEAN_VDIR(boat_status, engine_starboard);
+  CLEAN_VDIR(boat_status, engine_port);
+  CLEAN_VDIR(boat_status, engine_single);
+  CLEAN_VDIR(boat_status, alarms);
+  CLEAN_VDIR(boat, status);
+  CLEAN_VDIR(boat, commands);
+  CLEAN_VDIR(boat, sensors);
   kobject_put(boat_kobj_ref);
   return 1;
 }
 
 static void exit_sysfs(void) {
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_auto_rel_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_large_xte_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_no_data_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_heading_display_off_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_rudder_position_attribute.attr);
-//  sysfs_remove_file(alarms_kobj_ref, &alarms_autopilot_wind_shift_attribute.attr);
-//  sysfs_remove_file(alarms_kobj_ref, &alarms_autopilot_off_course_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_mode_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_target_heading_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_turning_direction_attribute.attr);
-//  sysfs_remove_file(autopilot_status_kobj_ref, &autopilot_compass_heading_attribute.attr);
-//  sysfs_remove_file(sensors_kobj_ref, &compass_sensor_attribute.attr);
-//  kobject_put(alarms_kobj_ref);
-//  kobject_put(autopilot_status_kobj_ref);
-  kobject_put(status_kobj_ref);
-  kobject_put(sensors_kobj_ref);
+
+#undef VFILE
+#define VFILE(STATUS_SENSOR_COMMAND, PARENT, NAME) RAW_CLEAN_VFILE(STATUS_SENSOR_COMMAND, PARENT, NAME)
+
+  VFILES();
+
+#undef DIRECTORY
+#define DIRECTORY(PARENT, NAME) kobject_put(PARENT ## _ ## NAME ## _kobj_ref)
+
+  STATUS_DIRECTORY();
+  ROOT_DIRECTORY();
   kobject_put(boat_kobj_ref);
 }
 

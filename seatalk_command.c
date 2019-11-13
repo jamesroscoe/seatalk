@@ -6,8 +6,8 @@
 #endif
 
 #include "boat_status.h"
-#include "seatalk_command.h"
 #include "seatalk_datagram.h"
+#include "seatalk_command.h"
 
 #define MAX_COMMAND_DELAY 3 // seconds
 #define SLEEP_DURATION 100 // milliseconds
@@ -21,63 +21,63 @@ int seatalk_command_pending(void) {
   return command_datagram_bytes_remaining > 0;
 }
 
-void send_command(int length) {
+int send_command(int length) {
   int count = 0;
   command_datagram_position = 0;
   command_datagram_bytes_remaining = length;
   while (command_datagram_bytes_remaining || (count++ >= MAX_COMMAND_LOOPS)) {
     usleep_range(SLEEP_DURATION, SLEEP_DURATION * 2);
   }
+  return command_datagram_bytes_remaining == 0;
 }
 
-void set_lamp_intensity(int level) {
-//  send_command(build_set_lamp_intensity_datagram(datagram, level));
-//  send_command(build_set_lamp_intensity2_datagram(datagram, level));
+int set_lamp_intensity(int level) {
+  return send_command(build_lamp_intensity(command_datagram, level));
 }
 
-void cancel_mob(void) {
-//  send_command(build_set_lamp_intensity_datagram(datagram));
+//void cancel_mob(void) {
+//  send_command(build_cancel_mob(command_datagram));
+//}
+
+//void track_keystroke_from_gps(void) {
+//  send_command(build_track_keystroke_from_gps(command_datagram));
+//}
+
+//void set_countdown_timer(int hours, minutes, int seconds, int mode) {
+//  send_command(build_countdown_timer(command_datagram, hours, minutes, seconds, mode));
+//}
+
+//void acknowledge_alarm(int alarm_type) {
+//  send_command(build_alarm_acknowledgement(command_datagram, alarm_type));
+//}
+
+//void mob(void) {
+//  send_command(build_mob_waypoint(command_datagram));
+//  send_command(build_mob(command_datagram));
+//}
+
+//void maxview_remote_keypress(ST_AUTOPILOT_COMMAND command) {
+//  send_command(build_autopilot_remote_keystroke(command_datagram, command));
+//}
+
+//void pass_user_cal() {
+//  send_command(build_pass_user_cal());
+//  send_command(build_pass_user_cal2());
+//}
+
+int autopilot_remote_keystroke(ST_AUTOPILOT_COMMAND command) {
+  return send_command(build_autopilot_command(command_datagram, command));
 }
 
-void track_keystroke_from_gps(void) {
-//  send_command(build_track_keystroke_from_gps_datagram(datagram));
+int set_autopilot_response_level(AUTOPILOT_RESPONSE_LEVEL level) {
+  return send_command(build_set_autopilot_response_level(command_datagram, level));
 }
 
-void set_countdown_timer(int minutes, int seconds, int hours, int mode) {
-//  send_command(build_set_countdown_timer_datagram(minutes, seconds, hours, mode));
-}
+//void set_autopilot_rudder_gain(int level) {
+//  send_command(build_set_rudder_gain(command_datagram, level));
+//}
 
-void acknowledge_alarm(int alarm_type) {
-//  send_command(build_acknowledge_alarm_datagram(alarm_type));
-}
-
-void mob(void) {
-//  send_command(build_mob_waypoint_datagram());
-//  send_command(build_mob_datagram());
-}
-
-void maxview_remote_keypress(int key) {
-//  send_command(build_maxview_keypress_datagram(key));
-}
-
-void pass_user_cal() {
-//  send_command(build_pass_user_cal_datagram());
-//  send_command(build_pass_user_cal2_datagram());
-}
-
-void autopilot_remote_keystroke(int keystroke_type) {
-//  send_command(build_autopilot_remote_keystroke_datagram(keystroke_type));
-}
-
-void set_autopilot_response_level(int level) {
-//  send_command(build_set_autopilot_response_level_datagram(level));
-}
-
-void set_autopilot_rudder_gain(int level) {
-//  send_command(build_set_autopilot_rudder_gain_datagram(level));
-}
-
-void set_autopilot_parameter(int parameter_number, int value) {
-//  send_command(build_set_autopilot_parameter_datagram(parameter_number, value));
-}
+//void set_autopilot_parameter(int parameter_number, int value) {
+//  send_command(build_set_autopilot_parameter(command_datagram, parameter_number, value));
+//}
 

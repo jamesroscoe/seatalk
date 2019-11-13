@@ -1,9 +1,9 @@
 #include "seatalk_transport_layer.h"
 #include "seatalk_hardware_layer.h"
 #include "seatalk_protocol.h"
-#include "seatalk_command.h"
 #include "boat_status.h"
 #include "seatalk_datagram.h"
+#include "seatalk_command.h"
 #include "logger.h"
 
 #define IDLE_BITS 10

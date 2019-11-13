@@ -291,8 +291,8 @@ void update_date(char *datagram) {
 void update_satellite_info(char *datagram) {
   int satellite_count, horizontal_dilution_of_position;
   parse_satellite_info(datagram, &satellite_count, &horizontal_dilution_of_position);
-  set_gps_fix_satellite_count(1, satellite_count, 0);
-  set_gps_fix_position_error(1, horizontal_dilution_of_position);
+  set_gps_fix_satellite_count(satellite_count, 0);
+  set_gps_fix_position_error(horizontal_dilution_of_position);
 }
 
 void update_lat_lon_position(char *datagram) {
@@ -471,12 +471,22 @@ void update_arrival_info(char *datagram) {
 void update_gps_and_dgps_fix_info(char *datagram) {
   int signal_quality_available, signal_quality, hdop_available, hdop, antenna_height, satellite_count_available, satellite_count, geoseparation, dgps_age_available, dgps_age, dgps_station_id_available, dgps_station_id;
   parse_gps_and_dgps_fix_info(datagram, &signal_quality_available, &signal_quality, &hdop_available, &hdop, &antenna_height, &satellite_count_available, &satellite_count, &geoseparation, &dgps_age_available, &dgps_age, &dgps_station_id_available, &dgps_station_id);
-  set_gps_fix_signal_quality(signal_quality_available, signal_quality);
-  set_gps_fix_position_error(hdop_available, hdop);
+  if (signal_quality_available) {
+    set_gps_fix_signal_quality(signal_quality);
+  }
+  if (hdop_available) {
+    set_gps_fix_position_error(hdop);
+  }
   set_gps_fix_antenna_height(antenna_height);
-  set_gps_fix_satellite_count(satellite_count_available, satellite_count, geoseparation);
-  set_gps_fix_dgps_age(dgps_age_available, dgps_age);
-  set_gps_fix_dgps_station_id(dgps_station_id_available, dgps_station_id);
+  if (satellite_count_available) {
+    set_gps_fix_satellite_count(satellite_count, geoseparation);
+  }
+  if (dgps_age_available) {
+    set_gps_fix_dgps_age(dgps_age);
+  }
+  if (dgps_station_id_available) {
+    set_gps_fix_dgps_station_id(dgps_station_id);
+  }
 }
 
 void update_seatalk_state(char *datagram) {
