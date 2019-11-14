@@ -11,6 +11,18 @@ void simulate_receive_datagram(char *datagram, int length) {
   }
 }
 
+void invalidate_all_sensors() {
+  invalidate_heading_sensor();
+  invalidate_water_speed_in_knots_times_100_sensor();
+  invalidate_apparent_wind_angle_sensor();
+  invalidate_apparent_wind_speed_in_knots_times_10_sensor();
+  invalidate_depth_below_transducer_in_feet_times_10_sensor();
+  invalidate_course_over_ground_sensor();
+  invalidate_speed_over_ground_in_knots_times_100_sensor();
+  invalidate_water_temperature_in_degrees_celsius_times_10_sensor();
+  invalidate_rudder_position_in_degrees_right_sensor();
+}
+
 #define ASSERT_GET_VALUE(NAME, VARIABLE) assert_equal_int(0, get_##NAME(&VARIABLE), "get_" #NAME "() should return a value")
 
 #define RAW_RAW_TEST_RECEIVE(NAME, TYPE) TEST(receive_##NAME)\
@@ -202,8 +214,64 @@ RAW_RAW_TEST_RECEIVE(autopilot_status, AUTOPILOT_STATUS)
   // response_level, rudder gain
 }
 
+void refute_seatalk_sensor_pending() {
+  SENSOR_ID sensor_id;
+  refute(seatalk_sensor_pending(&sensor_id), "no sensors should be pending after invalidate_all_sensors()");
+}
+
+void assert_seatalk_sensor_pending() {
+  SENSOR_ID sensor_id;
+  assert(seatalk_sensor_pending(&sensor_id), "sensor should be pending after setting sensor value");
+}
+
+#define ASSERT_EQUAL_DATAGRAM(REFERENCE_DATAGRAM, REFERENCE_LENGTH, TEST_DATAGRAM, TEST_LENGTH, NAME) assert_equal_int(REFERENCE_LENGTH, TEST_LENGTH, #NAME " datagram length");\
+  for (int i = 0; i < REFERENCE_LENGTH; i++) {\
+    char message[256];\
+    sprintf(message, #NAME " datagram[%d]", i);\
+    assert_equal_int(REFERENCE_DATAGRAM[i], TEST_DATAGRAM[i], message);\
+  }
+
+#define TEST_SENSOR_UPDATED(NAME, REFERENCE_VALUE, DATAGRAM) TEST(update_##NAME##_sensor)\
+  char test_datagram[256], datagram[256];\
+  int test_length, length;\
+  invalidate_all_sensors();\
+  refute_seatalk_sensor_pending();\
+  update_##NAME##_sensor(REFERENCE_VALUE);\
+  assert_seatalk_sensor_pending();\
+  test_length = get_pending_datagram(test_datagram);\
+  length = DATAGRAM;\
+  ASSERT_EQUAL_DATAGRAM(datagram, length, test_datagram, test_length, NAME);\
+}
+
+#define HEADING_SENSOR_TEST_VALUE 359
+TEST_SENSOR_UPDATED(heading, HEADING_SENSOR_TEST_VALUE, build_heading(datagram, HEADING_SENSOR_TEST_VALUE, 0, 0))
+
+#define WATER_SPEED_SENSOR_TEST_VALUE 789
+TEST_SENSOR_UPDATED(water_speed_in_knots_times_100, WATER_SPEED_SENSOR_TEST_VALUE, build_average_water_speed(datagram, WATER_SPEED_SENSOR_TEST_VALUE, 0, 1, 0, 1, 0))
+
+#define APPARENT_WIND_ANGLE_SENSOR_TEST_VALUE 167
+TEST_SENSOR_UPDATED(apparent_wind_angle, APPARENT_WIND_ANGLE_SENSOR_TEST_VALUE, build_apparent_wind_angle(datagram, APPARENT_WIND_ANGLE_SENSOR_TEST_VALUE * 2))
+
+#define APPARENT_WIND_SPEED_SENSOR_TEST_VALUE 193
+TEST_SENSOR_UPDATED(apparent_wind_speed_in_knots_times_10, APPARENT_WIND_SPEED_SENSOR_TEST_VALUE, build_apparent_wind_speed(datagram, APPARENT_WIND_SPEED_SENSOR_TEST_VALUE, 0))
+
+#define DEPTH_SENSOR_TEST_VALUE 2999
+TEST_SENSOR_UPDATED(depth_below_transducer_in_feet_times_10, DEPTH_SENSOR_TEST_VALUE, build_depth_below_transducer(datagram, DEPTH_SENSOR_TEST_VALUE, 0, 0, 0))
+
+#define COURSE_OVER_GROUND_SENSOR_TEST_VALUE 354
+TEST_SENSOR_UPDATED(course_over_ground, COURSE_OVER_GROUND_SENSOR_TEST_VALUE, build_course_over_ground(datagram, COURSE_OVER_GROUND_SENSOR_TEST_VALUE))
+
+#define SPEED_OVER_GROUND_SENSOR_TEST_VALUE 278
+TEST_SENSOR_UPDATED(speed_over_ground_in_knots_times_100, SPEED_OVER_GROUND_SENSOR_TEST_VALUE, build_speed_over_ground(datagram, SPEED_OVER_GROUND_SENSOR_TEST_VALUE / 10))
+
+#define WATER_TEMPERATURE_SENSOR_TEST_VALUE 182
+TEST_SENSOR_UPDATED(water_temperature_in_degrees_celsius_times_10, WATER_TEMPERATURE_SENSOR_TEST_VALUE, build_precise_water_temperature(datagram, WATER_TEMPERATURE_SENSOR_TEST_VALUE))
+
+//#define RUDDER_POSITION_SENSOR_TEST_VALUE // this one is more difficult due to reliance on heading sensor as well. Need to roll full test
+
 void test_seatalk_protocol() {
   printf("--- Testing seatalk_protocol.c\n");
+  // ensure status updates when receiving datagrams
   test_receive_depth_below_transducer_in_feet_times_10();
   test_receive_single_engine_status();
   test_receive_port_engine_status();
@@ -225,4 +293,14 @@ void test_seatalk_protocol() {
   test_receive_navigation();
   test_receive_gmt_date_and_time();
   test_receive_autopilot_status();
+  // test datagrams get queued for output when sensors updated
+  test_update_heading_sensor();
+  test_update_water_speed_in_knots_times_100_sensor();
+  test_update_apparent_wind_angle_sensor();
+  test_update_apparent_wind_speed_in_knots_times_10_sensor();
+  test_update_depth_below_transducer_in_feet_times_10_sensor();
+  test_update_course_over_ground_sensor();
+  test_update_speed_over_ground_in_knots_times_100_sensor();
+  test_update_water_temperature_in_degrees_celsius_times_10_sensor();
+//  test_update_rudder_position_in_degrees_right();
 }

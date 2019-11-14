@@ -6,6 +6,7 @@
 #include "seatalk_transport_layer_test.h"
 #include "seatalk_datagram_test.h"
 #include "boat_status_test.h"
+#include "boat_sensor_test.h"
 #include "seatalk_protocol_test.h"
 
 void main() {
@@ -19,8 +20,13 @@ void main() {
   // test preparation of each message
   // test parsing each known message
   test_seatalk_datagram();
+  // test read/write of status values
   test_boat_status();
-  // test message read/write
+  // test read/write of sensor values
+  test_boat_sensor();
+  // test status values update when new datagrams received
+  // test sensor values generate correct datagrams to transmit
+  // test commands generate correct datagrams to transmit
   test_seatalk_protocol();
   printf("Tests completed with %d assertions (%d failures)\n", total_assertions(), total_failures());
 }
