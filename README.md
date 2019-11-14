@@ -18,7 +18,7 @@ OR
 
 * to get device status from the SeaTalk bus call get_x_status where &lt;x&gt; is the name of a device (eg autopilot)
 * to write a sensor value to the SeaTalk bus call set_x_sensor where &lt;x&gt; is the name of a sensor (eg compass)
-# to send a command call a command function from seatalk_command.h (eg set_lamp_intensity)
+* to send a command call a command function from seatalk_command.h (eg set_lamp_intensity)
 
 All sensor and status values time out after 5 seconds (configurable in boat_status.h and boat_sensor.h).
 
