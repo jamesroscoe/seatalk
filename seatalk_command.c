@@ -11,7 +11,7 @@
 
 #define MAX_COMMAND_DELAY 3 // seconds
 #define SLEEP_DURATION 100 // milliseconds
-#define MAX_COMMAND_LOOPS MAX_COMMAND_DELAY / 100
+#define MAX_COMMAND_LOOPS MAX_COMMAND_DELAY * 1000 / SLEEP_DURATION
 
 char command_datagram[256];
 int command_datagram_position = 0;
@@ -25,7 +25,7 @@ int send_command(int length) {
   int count = 0;
   command_datagram_position = 0;
   command_datagram_bytes_remaining = length;
-  while (command_datagram_bytes_remaining || (count++ >= MAX_COMMAND_LOOPS)) {
+  while (command_datagram_bytes_remaining && (count++ <= MAX_COMMAND_LOOPS)) {
     usleep_range(SLEEP_DURATION, SLEEP_DURATION * 2);
   }
   return command_datagram_bytes_remaining == 0;

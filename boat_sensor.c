@@ -4,14 +4,16 @@
 #include "boat_sensor.h"
 #include "seatalk_transport_layer.h"
 
+int sensors_initialized = 0;
+
 #define SENSOR_VARIABLE(NAME) sensor_ ## NAME
 #define SENSOR_EXPIRY_TIME(NAME) sensor_##NAME##_expiry
 #define SENSOR_VALUE_TRANSMITTED_VARIABLE(NAME) sensor_##NAME##_transmitted
-#define VALID_SENSOR(NAME) timeout_still_valid(SENSOR_EXPIRY_TIME(NAME))
+#define VALID_SENSOR(NAME) (sensors_initialized && timeout_still_valid(SENSOR_EXPIRY_TIME(NAME)))
 #define SENSOR_VALUE_UNTRANSMITTED(NAME) !SENSOR_VALUE_TRANSMITTED_VARIABLE(NAME)
 #define SET_SENSOR_EXPIRY(NAME, VALUE) SENSOR_EXPIRY_TIME(NAME) = VALUE
 #define VALIDATE_SENSOR(NAME) restart_timeout(&SENSOR_EXPIRY_TIME(NAME), SENSOR_TIME_TO_LIVE)
-#define INVALIDATE_SENSOR(NAME) invalidate_timeout(&SENSOR_EXPIRY_TIME(NAME)
+#define INVALIDATE_SENSOR(NAME) invalidate_timeout(&SENSOR_EXPIRY_TIME(NAME))
 #define UNTRANSMITTED_SENSOR_VALUE(NAME) SENSOR_VALUE_TRANSMITTED_VARIABLE(NAME) = 0
 #define TRANSMITTED_SENSOR_VALUE(NAME) SENSOR_VALUE_TRANSMITTED_VARIABLE(NAME) = 1
 #define DEFINE_SENSOR_EXPIRY(NAME) timeout SENSOR_EXPIRY_TIME(NAME) = TIMEOUT_DEFAULT
@@ -33,6 +35,9 @@ int pop_##NAME##_sensor_value(TYPE *value) {\
     return 0;\
   }\
   return 1;\
+}\
+void invalidate_##NAME##_sensor() {\
+  INVALIDATE_SENSOR(NAME);\
 }
 
 #define DEFINE_SENSOR(NAME, TYPE) DEFINE_READ_ONLY_SENSOR(NAME, TYPE)\
@@ -52,3 +57,17 @@ DEFINE_SENSOR(course_over_ground, int);
 DEFINE_SENSOR(speed_over_ground_in_knots_times_100, int);
 DEFINE_SENSOR(water_temperature_in_degrees_celsius_times_10, int);
 DEFINE_SENSOR(rudder_position_in_degrees_right, int);
+
+void initialize_sensors(void) {
+  sensors_initialized = 1;
+  INVALIDATE_SENSOR(heading);
+  INVALIDATE_SENSOR(water_speed_in_knots_times_100);
+  INVALIDATE_SENSOR(apparent_wind_angle);
+  INVALIDATE_SENSOR(apparent_wind_speed_in_knots_times_10);
+  INVALIDATE_SENSOR(depth_below_transducer_in_feet_times_10);
+  INVALIDATE_SENSOR(course_over_ground);
+  INVALIDATE_SENSOR(speed_over_ground_in_knots_times_100);
+  INVALIDATE_SENSOR(water_temperature_in_degrees_celsius_times_10);
+  INVALIDATE_SENSOR(rudder_position_in_degrees_right);
+}
+

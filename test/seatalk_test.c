@@ -7,6 +7,7 @@
 #include "seatalk_datagram_test.h"
 #include "boat_status_test.h"
 #include "boat_sensor_test.h"
+#include "seatalk_command_test.h"
 #include "seatalk_protocol_test.h"
 
 void main() {
@@ -24,6 +25,8 @@ void main() {
   test_boat_status();
   // test read/write of sensor values
   test_boat_sensor();
+  // test generating commands
+  test_seatalk_command();
   // test status values update when new datagrams received
   // test sensor values generate correct datagrams to transmit
   // test commands generate correct datagrams to transmit

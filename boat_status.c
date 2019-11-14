@@ -3,11 +3,11 @@
 #include "boat_status.h"
 #include "settings.h"
 
-int initialized = 0;
+int status_initialized = 0;
 
 #define STATUS_VARIABLE(NAME) status_ ## NAME
 #define STATUS_EXPIRY_TIME(NAME) status_##NAME##_expiry
-#define VALID_STATUS(NAME) (initialized && timeout_still_valid(STATUS_EXPIRY_TIME(NAME)))
+#define VALID_STATUS(NAME) (status_initialized && timeout_still_valid(STATUS_EXPIRY_TIME(NAME)))
 #define SET_STATUS_EXPIRY(NAME, VALUE) STATUS_EXPIRY_TIME(NAME) = VALUE
 #define VALIDATE_STATUS(NAME) restart_timeout(&STATUS_EXPIRY_TIME(NAME), STATUS_TIME_TO_LIVE)
 #define INVALIDATE_STATUS(NAME) invalidate_timeout(&STATUS_EXPIRY_TIME(NAME))
@@ -65,7 +65,7 @@ DEFINE_STATUS_EXPIRY(gmt_time);
 DEFINE_READ_ONLY_STATUS(autopilot, AUTOPILOT_STATUS);
 
 void initialize_status(void) {
-  initialized = 1;
+  status_initialized = 1;
   INVALIDATE_STATUS(active_alarms);
   INVALIDATE_STATUS(depth_below_transducer_in_feet_times_10);
   INVALIDATE_STATUS(engine_single);

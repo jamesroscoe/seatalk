@@ -1,4 +1,3 @@
-
 #include "seatalk_protocol.h"
 #include "boat_status.h"
 #include "boat_sensor.h"
@@ -28,7 +27,7 @@ int seatalk_sensor_pending(SENSOR_ID *sensor_id) {
   else {
     *sensor_id = SENSOR_ID_NONE;
   }
-  return sensor_id != SENSOR_ID_NONE;
+  return *sensor_id != SENSOR_ID_NONE;
 }
 
 int build_heading_sensor_datagram(char *datagram) {
@@ -61,7 +60,7 @@ int build_apparent_wind_angle_sensor_datagram(char *datagram) {
 
 int build_apparent_wind_speed_sensor_datagram(char *datagram) {
   int apparent_wind_speed_in_knots_times_10;
-  if (pop_apparent_wind_speed_in_knots_times_10_sensor_value(&apparent_wind_speed_in_knots_times_10)) {
+  if (pop_apparent_wind_speed_in_knots_times_10_sensor_value(&apparent_wind_speed_in_knots_times_10) == 0) {
     return build_apparent_wind_speed(datagram, apparent_wind_speed_in_knots_times_10, 0);
   }
   return 0;

@@ -3,6 +3,7 @@
 /**/*.symvers
 /**/.*.ko.cmd
 /**/.*.c.swp
+/**/.*.h.swp
 /**/.*.o.cmd
 /**/.*.mod
 /**/*.mod.c
