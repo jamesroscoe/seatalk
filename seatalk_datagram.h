@@ -99,10 +99,10 @@ void parse_maxview_keystroke(char *datagram, int *key_1, int *key_2, int *held_l
 void accept_maxview_keystroke(char *datagram);
 int build_target_waypoint_name(char *datagram, int char1, int char2, int char3, int char4);
 int parse_target_waypoint_name(char *datagram, int *char_1, int *char_2, int *char_3, int *char_4);
-int build_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE failure_type); 
+int build_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE failure_type);
 void parse_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE *failure_type);
-int build_autopilot_status(char *datagram, int compass_heading, int turning_direction, int target_heading, AUTOPILOT_MODE mode, int rudder_position, int alarms, int display_flags);
-void parse_autopilot_status(char *datagram, int *compass_heading, int *turning_direction, int *target_heading, AUTOPILOT_MODE *mode, int *rudder_position, int *alarms, int *display_flags);
+int build_autopilot_status(char *datagram, int compass_heading, TURN_DIRECTION turning_direction, int target_heading, AUTOPILOT_MODE mode, int wrudder_position, int alarms, int display_flags);
+void parse_autopilot_status(char *datagram, int *compass_heading, TURN_DIRECTION *turning_direction, int *target_heading, AUTOPILOT_MODE *mode, int *rudder_position, int *alarms, int *display_flags);
 int build_waypoint_navigation(char *datagram, int cross_track_error_present, int cross_track_error_times_100, int waypoint_bearing_present, int waypoint_bearing, int bearing_is_magnetic, int waypoint_distance_present, int waypoint_distance_times_100, int direction_to_steer);
 int parse_waypoint_navigation(char *datagram, int *cross_track_error_present, int *cross_track_error_times_100, int *waypoint_bearing_present, int *waypoint_bearing, int *bearing_is_magnetic, int *waypoint_distance_present, int *waypoint_distance_times_100, int *direction_to_steer);
 int build_autopilot_command(char *datagram, ST_AUTOPILOT_COMMAND command);
@@ -118,9 +118,10 @@ void parse_set_autopilot_parameter(char *datagram, int *parameter, int *value);
 void parse_enter_autopilot_setup(char *datagram);
 int build_compass_variation(char *datagram, int degrees);
 void parse_compass_variation(char *datagram, int *degrees);
-int build_heading_and_rudder_position(char *datagram, int heading, int turning_direction, int rudder_position);
-void parse_heading_and_rudder_position(char *datagram, int *heading, int *turning_direction, int *rudder_position);
+int build_heading_and_rudder_position(char *datagram, int heading, TURN_DIRECTION turning_direction, int rudder_position);
+void parse_heading_and_rudder_position(char *datagram, int *heading, TURN_DIRECTION *turning_direction, int *rudder_position);
 void parse_destination_waypoint_info(char *datagram, char *last_4, char *first_8, int *more_records, int *last_record);
 void parse_arrival_info(char *datagram, int *perpendicular_passed, int *circle_entered, int *char_1, int *char_2, int *char_3, int *char_4);
+int build_gps_and_dgps_fix_info(char *datagram, int signal_quality_available, int signal_quality, int hdop_available, int hdop, int antenna_height, int satellite_count_available, int satellite_count, int geoseparation, int dgps_age_available, int dgps_age, int dgps_status_id_available, int dgps_station_id);
 void parse_gps_and_dgps_fix_info(char *datagram, int *signal_quality_available, int *signal_quality, int *hdop_available, int *hdop, int *antenna_height, int *satellite_count_available, int *satellite_count, int *geoseparation, int *dgps_age_available, int *dgps_age, int *dgps_station_id_available, int *dgps_station_id);
- 
+

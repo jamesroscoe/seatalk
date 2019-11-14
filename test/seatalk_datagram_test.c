@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "test.h"
 #include "../seatalk_datagram.c"
+#include "../logger.h"
 
 #define TEST_BUILD(DATAGRAM_CODE) TEST(build_##DATAGRAM_CODE)\
   char datagram[256];
@@ -501,9 +502,10 @@ TEST_DATAGRAM(83) // course computer failure
   assert_course_computer_failure(COURSE_COMPUTER_FAILURE_TYPE_DRIVE_STOPPED);
 }
 
-void assert_autopilot_status(int compass_heading_in, int turning_direction_in, int target_heading_in, AUTOPILOT_MODE mode_in, int rudder_position_in, int alarms_in, int display_flags_in) {
+void assert_autopilot_status(int compass_heading_in, TURN_DIRECTION turning_direction_in, int target_heading_in, AUTOPILOT_MODE mode_in, int rudder_position_in, int alarms_in, int display_flags_in) {
   char datagram[256];
-  int compass_heading_out, turning_direction_out, target_heading_out, alarms_out, rudder_position_out, display_flags_out;
+  int compass_heading_out, target_heading_out, alarms_out, rudder_position_out, display_flags_out;
+  TURN_DIRECTION turning_direction_out;
   AUTOPILOT_MODE mode_out;
   assert_equal_int(DATAGRAM_84_LENGTH, build_autopilot_status(datagram, compass_heading_in, turning_direction_in, target_heading_in, mode_in, rudder_position_in, alarms_in, display_flags_in), "incorrect datagram length");
   parse_autopilot_status(datagram, &compass_heading_out, &turning_direction_out, &target_heading_out, &mode_out, &rudder_position_out, &alarms_out, &display_flags_out);
@@ -519,12 +521,12 @@ void assert_autopilot_status(int compass_heading_in, int turning_direction_in, i
 TEST_DATAGRAM(84) // autopilot status
   for (int i = 0; i <= 359; i++) {
     for (int j = -3; j <= 3; j++) {
-      assert_autopilot_status(i, 0, 300, AUTOPILOT_MODE_AUTO, j, 0, 0);
+      assert_autopilot_status(i, TURN_DIRECTION_LEFT, 300, AUTOPILOT_MODE_AUTO, j, 0, 0);
     }
   }
-  assert_autopilot_status(359, 0, 300, AUTOPILOT_MODE_AUTO, 0, ALARM_AUTOPILOT_OFF_COURSE, AUTOPILOT_DISPLAY_OFF);
-  assert_autopilot_status(0, 0, 300, AUTOPILOT_MODE_VANE, 0, ALARM_AUTOPILOT_WIND_SHIFT, AUTOPILOT_DISPLAY_NO_DATA | AUTOPILOT_DISPLAY_LARGE_XTE);
-  assert_autopilot_status(180, 0, 300, AUTOPILOT_MODE_TRACK, 0, 0, AUTOPILOT_DISPLAY_AUTO_REL);
+  assert_autopilot_status(359, TURN_DIRECTION_RIGHT, 300, AUTOPILOT_MODE_AUTO, 0, ALARM_AUTOPILOT_OFF_COURSE, AUTOPILOT_DISPLAY_OFF);
+  assert_autopilot_status(0, TURN_DIRECTION_LEFT, 300, AUTOPILOT_MODE_VANE, 0, ALARM_AUTOPILOT_WIND_SHIFT, AUTOPILOT_DISPLAY_NO_DATA | AUTOPILOT_DISPLAY_LARGE_XTE);
+  assert_autopilot_status(180, TURN_DIRECTION_RIGHT, 300, AUTOPILOT_MODE_TRACK, 0, 0, AUTOPILOT_DISPLAY_AUTO_REL);
 }
 
 //TEST(parse_84)
@@ -660,9 +662,10 @@ TEST_DATAGRAM(99) // compass variation
   }
 }
 
-void assert_heading_and_rudder_position(int heading_in, int turning_direction_in, int rudder_position_in) {
+void assert_heading_and_rudder_position(int heading_in, TURN_DIRECTION turning_direction_in, int rudder_position_in) {
   char datagram[256];
-  int heading_out, turning_direction_out, rudder_position_out;
+  int heading_out, rudder_position_out;
+  TURN_DIRECTION turning_direction_out;
   assert_equal_int(DATAGRAM_9C_LENGTH, build_heading_and_rudder_position(datagram, heading_in, turning_direction_in, rudder_position_in), "incorrect datagram length");
 //  print_datagram(datagram, DATAGRAM_9C_LENGTH);
 //  printf("heading_in: %d; turning_direction_in: %d\n", heading_in, turning_direction_in);
@@ -675,8 +678,8 @@ void assert_heading_and_rudder_position(int heading_in, int turning_direction_in
 TEST_DATAGRAM(9c) // compass heading and rudder position
   for (int i = -3; i <= 3; i++) {
     for (int j = 0; j < 360; j++) {
-      assert_heading_and_rudder_position(j, 0, i);
-      assert_heading_and_rudder_position(j, 1, i);
+      assert_heading_and_rudder_position(j, TURN_DIRECTION_LEFT, i);
+      assert_heading_and_rudder_position(j, TURN_DIRECTION_RIGHT, i);
     }
   }
 }

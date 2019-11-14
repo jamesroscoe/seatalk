@@ -52,7 +52,7 @@ void cancel_datagram(void) {
 int seatalk_byte_received(char data_byte, int command_bit) {
   BUS_STATE current_state = bus_state;
   set_bus_state(BUS_STATE_WAIT_FOR_IDLE);
-  LOG("byte received: %x command_bit: %d bytes_remaining: %d", data_byte, command_bit, receive_datagram_bytes_remaining);
+//  LOG("byte received: %x command_bit: %d bytes_remaining: %d", data_byte, command_bit, receive_datagram_bytes_remaining);
   if (current_state == BUS_STATE_TRANSMITTING) {
     // collision; cancel current datagram and idle the bus for 10 cycles
     if (data_byte != transmit_buffer[transmit_buffer_position]) {
@@ -116,7 +116,7 @@ int seatalk_receive_bit() {
       // stop bit needs to be high. If it is not then we are misaligned
       // with the actual bytes and must discard this byte. We should
       // eventually "walk" around to correct start bit/stop bit alignment.
-      LOG("%x/%d received but stop_bit low", rx_byte, rx_command_bit);
+//      LOG("%x/%d received but stop_bit low", rx_byte, rx_command_bit);
       set_bus_state(BUS_STATE_IDLE);
       return 0;
     }
@@ -159,7 +159,7 @@ int seatalk_byte_to_send(char *data_byte, int *command_bit) {
 
 int seatalk_transmit_bit() {
   int current_bit = tx_bit_number;
-  LOG("seatalk_transmit_bit; tx_bit_number: %d", tx_bit_number);
+//  LOG("seatalk_transmit_bit; tx_bit_number: %d", tx_bit_number);
   if (current_bit == -1) {
     if (bus_state == BUS_STATE_WAIT_FOR_IDLE) {
       set_bus_state(BUS_STATE_IDLE);

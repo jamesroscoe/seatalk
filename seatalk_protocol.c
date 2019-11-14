@@ -1,7 +1,9 @@
+
 #include "seatalk_protocol.h"
 #include "boat_status.h"
 #include "boat_sensor.h"
 #include "seatalk_datagram.h"
+#include "logger.h"
 
 int build_command_datagram(char *datagram) {
 //  switch (pending_command) {
@@ -209,9 +211,9 @@ void update_total_mileage(char *datagram) {
 }
 
 void update_water_temperature(char *datagram) {
-  int celsius, transducer_defective;
-  parse_water_temperature(datagram, &celsius, &transducer_defective);
-  set_water_temperature_in_degrees_celsius_times_10(celsius * 10);
+  int fahrenheit, transducer_defective;
+  parse_water_temperature(datagram, &fahrenheit, &transducer_defective);
+  set_water_temperature_in_degrees_celsius_times_10((fahrenheit - 32) * 10 * 5 / 9);
 }
 
 void update_speed_distance_units(char *datagram) {
@@ -355,21 +357,22 @@ void update_course_computer_failure(char *datagram) {
 }
 
 void update_autopilot_status(char *datagram) {
-  int compass_heading, turning_direction, target_heading, alarms, rudder_position, display_flags;
+  int compass_heading, target_heading, alarms, rudder_position, display_flags;
+  TURN_DIRECTION turning_direction;
   AUTOPILOT_MODE mode;
   int current_active_alarms;
-  parse_autopilot_status(datagram, &compass_heading, &turning_direction, &target_heading, &mode, &alarms, &rudder_position, &display_flags);
+  parse_autopilot_status(datagram, &compass_heading, &turning_direction, &target_heading, &mode, &rudder_position, &alarms, &display_flags);
   set_heading(compass_heading);
   set_turn_direction(turning_direction);
   set_autopilot_target_heading(target_heading);
   set_autopilot_mode(mode);
+  set_rudder_position_in_degrees_right(rudder_position);
   if (alarms) {
     if (get_active_alarms(&current_active_alarms) != 0) {
       current_active_alarms = 0;
     }
     set_active_alarms(current_active_alarms | alarms);
   }
-  set_rudder_position_in_degrees_right(rudder_position);
 }
 
 void update_waypoint_navigation(char *datagram) {
@@ -446,9 +449,11 @@ void update_compass_variation(char *datagram) {
 }
 
 void update_heading_and_rudder_position(char *datagram) {
-  int heading, turning_direction, rudder_position;
+  int heading, rudder_position;
+  TURN_DIRECTION turning_direction;
   parse_heading_and_rudder_position(datagram, &heading, &turning_direction, &rudder_position);
   set_heading(heading);
+  set_turn_direction(turning_direction);
   set_rudder_position_in_degrees_right(rudder_position);
 }
 

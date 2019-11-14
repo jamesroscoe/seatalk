@@ -126,11 +126,11 @@ void uvw_compass(int *u, int *vw, int compass) {
   *u |= (temp_compass * 2) << 2;
 }
 
-void uvw_heading_and_turning_direction(int heading, int turning_direction, int *u, int *vw) {
+void uvw_heading_and_turning_direction(int heading, TURN_DIRECTION turning_direction, int *u, int *vw) {
   int temp_direction, odd;
   temp_direction = heading;
   odd = temp_direction % 2;
-  *u = turning_direction ? 0x8 : 0;
+  *u = turning_direction == TURN_DIRECTION_RIGHT ? 0x8 : 0;
   if (odd) {
     if (*u & 0x8) {
       // high bit of u adds 1 to heading so nothing to do
@@ -1027,7 +1027,7 @@ void parse_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE 
   }
 }
 
-int build_autopilot_status(char *datagram, int compass_heading, int turning_direction, int target_heading, AUTOPILOT_MODE mode, int rudder_position, int alarms, int display_flags) {
+int build_autopilot_status(char *datagram, int compass_heading, TURN_DIRECTION  turning_direction, int target_heading, AUTOPILOT_MODE mode, int rudder_position, int alarms, int display_flags) {
   // 84 u6 vw xy 0z 0m rr ss tt
   // compass heading: (u & 0x3) * 90 + (vw & 0x3f) * 2 + (u & 0xc ? ((u & 0xc) == 0xc ? 2 : 1) : 0)
   // turning direction: msb of u; 1 right, 0 left
@@ -1067,7 +1067,7 @@ int build_autopilot_status(char *datagram, int compass_heading, int turning_dire
   return DATAGRAM_84_LENGTH;
 }
 
-void parse_autopilot_status(char *datagram, int *compass_heading, int *turning_direction, int *target_heading, AUTOPILOT_MODE *mode, int *rudder_position, int *alarms, int *display_flags) {
+void parse_autopilot_status(char *datagram, int *compass_heading, TURN_DIRECTION *turning_direction, int *target_heading, AUTOPILOT_MODE *mode, int *rudder_position, int *alarms, int *display_flags) {
   char u, vw, xy, z, m, rr, ss, tt;
 
   // printf("parse_autopilot_status\n");
@@ -1081,7 +1081,7 @@ void parse_autopilot_status(char *datagram, int *compass_heading, int *turning_d
   tt = datagram[8];
 
   *compass_heading = ((u & 0x03) * 90) + ((vw & 0x3f) * 2) + ((u & 0x0c) ? (((u & 0x0c) == 0x0c) ? 2 : 1) : 0);
-  *turning_direction = flag(u, 0x08);
+  *turning_direction = flag(u, 0x08) ? TURN_DIRECTION_RIGHT : TURN_DIRECTION_LEFT;
   *target_heading = (((vw & 0xc0) >> 6) * 90) + (xy / 2);
   *mode = z;
   *rudder_position = fix_twos_complement_char(rr);
@@ -1115,9 +1115,9 @@ int build_waypoint_navigation(char *datagram, int cross_track_error_present, int
   y = waypoint_distance_times_100 < 1000 ? 1 : 0;
   y |= (direction_to_steer > 0) ? 0x4 : 0;
   if (y & 0x1) {
-    temp_value = waypoint_distance_times_100 / 10;
-  } else {
     temp_value = waypoint_distance_times_100;
+  } else {
+    temp_value = waypoint_distance_times_100 / 10;
   }
   z = temp_value >> 8;
   zz = temp_value & 0xff;
@@ -1166,7 +1166,7 @@ int parse_waypoint_navigation(char *datagram, int *cross_track_error_present, in
   *cross_track_error_times_100 = (x << 8) + xx;
   *waypoint_bearing = ((u & 0x3) * 90) + (((w << 4) + v) >> 1);
   *bearing_is_magnetic = flag(u, 0x8) ? 0 : 1;
-  *waypoint_distance_times_100 = ((z << 8) + zz) * (y & 0x1) ? 1 : 10;
+  *waypoint_distance_times_100 = ((z << 8) + zz) * ((y & 0x1) ? 1 : 10);
   *direction_to_steer = flag(y, 0x4) ? 1 : -1;
   *cross_track_error_present = flag(f, 0x1);
   *waypoint_bearing_present = flag(f, 0x2);
@@ -1320,7 +1320,7 @@ void parse_compass_variation(char *datagram, int *degrees) {
   *degrees = fix_twos_complement_char(xx);
 }
 
-int build_heading_and_rudder_position(char *datagram, int heading, int turning_direction, int rudder_position) {
+int build_heading_and_rudder_position(char *datagram, int heading, TURN_DIRECTION turning_direction, int rudder_position) {
   // 9c u1 vw rr
   // heading = (two low bits of u * 90 + vw * 2 + number of high bits in u
   // turning durection: high bit of u means right, 0 mans left
@@ -1334,13 +1334,13 @@ int build_heading_and_rudder_position(char *datagram, int heading, int turning_d
   return DATAGRAM_9C_LENGTH;
 }
 
-void parse_heading_and_rudder_position(char *datagram, int *heading, int *turning_direction, int *rudder_position) {
+void parse_heading_and_rudder_position(char *datagram, int *heading, TURN_DIRECTION *turning_direction, int *rudder_position) {
   int u, vw, rr;
   u = first_nibble(datagram[1]);
   vw = datagram[2];
   rr = datagram[3];
   *heading = (((u & 0x3) * 90) + ((vw & 0x3f) * 2) + (u & 0xc ? ((u & 0xc) == 0xc ? 2 : 1) : 0)) % 360;
-  *turning_direction = flag(u, 0x8);
+  *turning_direction = flag(u, 0x8) ? TURN_DIRECTION_RIGHT : TURN_DIRECTION_LEFT;
   *rudder_position = fix_twos_complement_char(rr);;
 }
 
@@ -1362,8 +1362,50 @@ void parse_arrival_info(char *datagram, int *perpendicular_passed, int *circle_e
   *char_4 = zz;
 }
 
-void parse_gps_and_dgps_fix_info(char *datagram, int *signal_quality_available, int *signal_quality, int *hdop_available, int *hdop, int *antenna_height, int *satellite_count_available,
-int *satellite_count, int *geoseparation, int *dgps_age_available, int *dgps_age, int *dgps_station_id_available, int *dgps_station_id) {
+int build_gps_and_dgps_fix_info(char *datagram, int signal_quality_available, int signal_quality, int hdop_available, int hdop, int antenna_height, int satellite_count_available, int satellite_count, int geoseparation, int dgps_age_available, int dgps_age, int dgps_station_id_available, int dgps_station_id) {
+  int qq, hh, aa, gg, zz, yy, dd;
+  if (signal_quality_available) {
+    qq = 0x10 | (signal_quality & 0x0f);
+  } else {
+    qq = 0;
+  }
+  if (hdop_available) {
+    hh = 0x80 | ((hdop & 0x3f) << 2);
+  } else {
+    hh = 0;
+  }
+  aa = antenna_height;
+  if (satellite_count_available) {
+    qq |= (satellite_count & 0x0e) << 4;
+    hh |= 0x02 | satellite_count * 0x01;
+  }
+  gg = geoseparation >> 4;
+  if (dgps_age_available) {
+    zz = (dgps_age & 0x70) << 1;
+    yy = 0x10 | (dgps_age * 0x0f);
+  } else {
+    zz = 0;
+    yy = 0;
+  }
+  if (dgps_station_id_available) {
+    yy |= 0x20 | ((dgps_station_id >> 4) & 0xc0);
+    dd = dgps_station_id;
+  } else {
+    dd = 0;
+  }
+  INITIALIZE_DATAGRAM(A5, 5);
+  datagram[2] = qq;
+  datagram[3] = hh;
+  datagram[4] = 00;
+  datagram[5] = aa;
+  datagram[6] = gg;
+  datagram[7] = zz;
+  datagram[8] = yy;
+  datagram[9] = dd;
+  return DATAGRAM_A5_LENGTH;
+}
+
+void parse_gps_and_dgps_fix_info(char *datagram, int *signal_quality_available, int *signal_quality, int *hdop_available, int *hdop, int *antenna_height, int *satellite_count_available, int *satellite_count, int *geoseparation, int *dgps_age_available, int *dgps_age, int *dgps_station_id_available, int *dgps_station_id) {
   int qq, hh, aa, gg, zz, yy, dd;
   qq = datagram[2];
   hh = datagram[3];

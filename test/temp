@@ -1,0 +1,74 @@
+cc -o seatalk_test seatalk_test.c assertions.c seatalk_hardware_layer.c seatalk_transport_layer_test.c seatalk_protocol_test.c seatalk_datagram_test.c seatalk_command_test.c boat_status_test.c boat_sensor_test.c timeout.c -I.
+seatalk_protocol_test.c:16:3: error: unknown type name ‘TYPE’
+   TYPE status_value;\
+   ^~~~
+seatalk_protocol_test.c:17:3: warning: data definition has no type or storage class
+   length = DATAGRAM;\
+   ^~~~~~
+seatalk_protocol_test.c:17:3: warning: type defaults to ‘int’ in declaration of ‘length’ [-Wimplicit-int]
+seatalk_protocol_test.c:17:12: error: ‘DATAGRAM’ undeclared here (not in a function)
+   length = DATAGRAM;\
+            ^~~~~~~~
+seatalk_protocol_test.c:18:3: warning: data definition has no type or storage class
+   simulate_receive_datagram(datagram, length);
+   ^~~~~~~~~~~~~~~~~~~~~~~~~
+seatalk_protocol_test.c:18:3: warning: type defaults to ‘int’ in declaration of ‘simulate_receive_datagram’ [-Wimplicit-int]
+seatalk_protocol_test.c:14:3: warning: parameter names (without types) in function declaration
+   char datagram[256];\
+   ^~~~
+seatalk_protocol_test.c:18:3: error: conflicting types for ‘simulate_receive_datagram’
+   simulate_receive_datagram(datagram, length);
+   ^~~~~~~~~~~~~~~~~~~~~~~~~
+seatalk_protocol_test.c:7:6: note: previous definition of ‘simulate_receive_datagram’ was here
+ void simulate_receive_datagram(char *datagram, int length) {
+      ^~~~~~~~~~~~~~~~~~~~~~~~~
+seatalk_protocol_test.c:28:31: error: expected declaration specifiers or ‘...’ before numeric constant
+ #define ENGINE_RPM_TEST_VALUE 3600
+                               ^
+seatalk_protocol_test.c:33:20: note: in expansion of macro ‘ENGINE_RPM_TEST_VALUE’
+   assert_equal_int(ENGINE_RPM_TEST_VALUE, status_value.rpm, "rpm");\
+                    ^~~~~~~~~~~~~~~~~~~~~
+seatalk_protocol_test.c:33:43: error: expected declaration specifiers or ‘...’ before ‘status_value’
+   assert_equal_int(ENGINE_RPM_TEST_VALUE, status_value.rpm, "rpm");\
+                                           ^~~~~~~~~~~~
+seatalk_protocol_test.c:33:61: error: expected declaration specifiers or ‘...’ before string constant
+   assert_equal_int(ENGINE_RPM_TEST_VALUE, status_value.rpm, "rpm");\
+                                                             ^~~~~
+seatalk_protocol_test.c:29:33: error: expected declaration specifiers or ‘...’ before numeric constant
+ #define ENGINE_PITCH_TEST_VALUE 10
+                                 ^
+seatalk_protocol_test.c:34:20: note: in expansion of macro ‘ENGINE_PITCH_TEST_VALUE’
+   assert_equal_int(ENGINE_PITCH_TEST_VALUE, status_value.pitch_percent, "pitch_percent");\
+                    ^~~~~~~~~~~~~~~~~~~~~~~
+seatalk_protocol_test.c:34:45: error: expected declaration specifiers or ‘...’ before ‘status_value’
+   assert_equal_int(ENGINE_PITCH_TEST_VALUE, status_value.pitch_percent, "pitch_percent");\
+                                             ^~~~~~~~~~~~
+seatalk_protocol_test.c:34:73: error: expected declaration specifiers or ‘...’ before string constant
+   assert_equal_int(ENGINE_PITCH_TEST_VALUE, status_value.pitch_percent, "pitch_percent");\
+                                                                         ^~~~~~~~~~~~~~~
+seatalk_protocol_test.c:35:1: error: expected identifier or ‘(’ before ‘}’ token
+ }
+ ^
+seatalk_protocol_test.c: In function ‘test_receive_single_engine_status’:
+seatalk_protocol_test.c:32:65: error: ‘status_variable’ undeclared (first use in this function)
+   assert_equal_int(0, get_engine_status(ENGINE_ID_##ENGINE_ID, &status_variable), "get_engine_status() should have returned engine status");
+                                                                 ^
+seatalk_protocol_test.c:37:1: note: in expansion of macro ‘TEST_RECEIVE_ENGINE_STATUS’
+ TEST_RECEIVE_ENGINE_STATUS(single, SINGLE)
+ ^~~~~~~~~~~~~~~~~~~~~~~~~~
+seatalk_protocol_test.c:32:65: note: each undeclared identifier is reported only once for each function it appears in
+   assert_equal_int(0, get_engine_status(ENGINE_ID_##ENGINE_ID, &status_variable), "get_engine_status() should have returned engine status");
+                                                                 ^
+seatalk_protocol_test.c:37:1: note: in expansion of macro ‘TEST_RECEIVE_ENGINE_STATUS’
+ TEST_RECEIVE_ENGINE_STATUS(single, SINGLE)
+ ^~~~~~~~~~~~~~~~~~~~~~~~~~
+seatalk_protocol_test.c: In function ‘test_receive_starboard_engine_status’:
+seatalk_protocol_test.c:56:1: error: expected declaration or statement at end of input
+ }
+ ^
+seatalk_protocol_test.c: In function ‘test_receive_port_engine_status’:
+seatalk_protocol_test.c:56:1: error: expected declaration or statement at end of input
+seatalk_protocol_test.c: In function ‘test_receive_single_engine_status’:
+seatalk_protocol_test.c:56:1: error: expected declaration or statement at end of input
+Makefile:2: recipe for target 'seatalk_test' failed
+make: *** [seatalk_test] Error 1

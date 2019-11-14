@@ -49,15 +49,6 @@ void print_bus_state(BUS_STATE state) {
     BUS_STATE_WAIT_FOR_IDLE);
 }
 
-void simulate_receive_datagram(char *datagram, int length) {
-  // printf("datagram (%d bytes): ", length);
-  for (int i = 0; i < length; i++) {
-    // printf("%.2x ", datagram[i]);
-    simulate_receive_character(datagram[i], (i == 0) ? 1 : 0);
-  }
-  // printf("\n");
-}
-
 void prepare_transmit_datagram(char *datagram, int length) {
   for (int i = 0; i < length; i++) {
     transmit_buffer[i] = datagram[i];
