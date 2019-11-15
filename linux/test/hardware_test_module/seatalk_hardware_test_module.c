@@ -1,8 +1,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #define DEBUG
-#include "../seatalk_hardware_layer.c"
-#include "../../test/hardware/seatalk_hardware_test.h"
+#include "../../seatalk_hardware_layer.c"
+#include "../../../test/hardware/seatalk_hardware_test.h"
 
 struct kobject *seatalk_kobj_ref;
 

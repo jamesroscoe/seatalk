@@ -2,8 +2,7 @@
 /**/*.ko
 /**/*.symvers
 /**/.*.ko.cmd
-/**/.*.c.swp
-/**/.*.h.swp
+/**/.*.swp
 /**/.*.o.cmd
 /**/.*.mod
 /**/*.mod.c
