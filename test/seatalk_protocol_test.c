@@ -4,6 +4,7 @@
 #include "seatalk_protocol_test.h"
 #include "../seatalk_protocol.c"
 #include "seatalk_hardware_layer.h"
+#include "seatalk_command_test.h"
 
 void simulate_receive_datagram(char *datagram, int length) {
   for (int i = 0; i < length; i++) {
@@ -269,7 +270,27 @@ TEST_SENSOR_UPDATED(water_temperature_in_degrees_celsius_times_10, WATER_TEMPERA
 
 //#define RUDDER_POSITION_SENSOR_TEST_VALUE // this one is more difficult due to reliance on heading sensor as well. Need to roll full test
 
+#define TEST_COMMAND(NAME, TRIGGER_COMMAND, DATAGRAM) TEST(trigger_##NAME##_command)\
+  char test_datagram[256], datagram[256];\
+  int test_length, length;\
+  length = DATAGRAM;\
+  TRIGGER_COMMAND;\
+  test_length = get_pending_datagram(test_datagram);\
+  length = DATAGRAM;\
+  ASSERT_EQUAL_DATAGRAM(datagram, length, test_datagram, test_length, NAME);\
+}
+
+#define AUTOPILOT_COMMAND_TEST_VALUE ST_AUTOPILOT_COMMAND_AUTO
+TEST_COMMAND(autopilot_remote_keystroke, autopilot_remote_keystroke(AUTOPILOT_COMMAND_TEST_VALUE), build_autopilot_command(datagram, AUTOPILOT_COMMAND_TEST_VALUE))
+
+#define AUTOPILOT_RESPONSE_TEST_VALUE AUTOPILOT_RESPONSE_LEVEL_MINIMUM_DEADBAND
+TEST_COMMAND(set_autopilot_response_level, set_autopilot_response_level(AUTOPILOT_RESPONSE_TEST_VALUE), build_set_autopilot_response_level(datagram, AUTOPILOT_RESPONSE_TEST_VALUE))
+
+#define LAMP_INTENSITY_TEST_VALUE 2
+TEST_COMMAND(set_lamp_intensity, set_lamp_intensity(LAMP_INTENSITY_TEST_VALUE), build_lamp_intensity(datagram, LAMP_INTENSITY_TEST_VALUE))
+
 void test_seatalk_protocol() {
+  clear_all_commands();
   printf("--- Testing seatalk_protocol.c\n");
   // ensure status updates when receiving datagrams
   test_receive_depth_below_transducer_in_feet_times_10();
@@ -303,4 +324,8 @@ void test_seatalk_protocol() {
   test_update_speed_over_ground_in_knots_times_100_sensor();
   test_update_water_temperature_in_degrees_celsius_times_10_sensor();
 //  test_update_rudder_position_in_degrees_right();
+  // test command datagrams get sent immediately when triggered
+  test_trigger_autopilot_remote_keystroke_command();
+  test_trigger_set_autopilot_response_level_command();
+  test_trigger_set_lamp_intensity_command();
 }

@@ -35,4 +35,3 @@ void test_seatalk_command() {
   test_set_autopilot_response_level_command();
   test_set_lamp_intensity_command();
 }
-
