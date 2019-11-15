@@ -2,12 +2,12 @@
 #include "boat_status.h"
 #include "boat_sensor.h"
 #include "seatalk_datagram.h"
+#include "seatalk_transport_layer.h"
+#include "seatalk_command.h"
 #include "logger.h"
 
-int build_command_datagram(char *datagram) {
-//  switch (pending_command) {
-//  }
-  return 0;
+void wake_transmitter(void) {
+  initiate_seatalk_transmitter();
 }
 
 #define SENSOR_PENDING(NAME, ID_NAME) if (has_##NAME##_sensor_value_to_transmit()) {\
@@ -150,7 +150,7 @@ int build_sensor_datagram(char *datagram) {
 
 int get_pending_datagram(char *datagram) {
   int length;
-  if ((length = build_command_datagram(datagram))) {
+  if ((length = get_command_datagram(datagram))) {
     return length;
   } else if ((length = build_sensor_datagram(datagram))) {
     return length;

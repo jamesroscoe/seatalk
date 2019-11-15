@@ -1,7 +1,7 @@
 #define SENSOR_ACCESSOR(NAME, TYPE) int has_##NAME##_sensor_value_to_transmit(void);\
 int pop_##NAME##_sensor_value(TYPE *NAME);\
 void update_##NAME##_sensor(TYPE NAME);\
-void invalidate_##NAME##_sensor()\
+void invalidate_##NAME##_sensor(void)\
 
 SENSOR_ACCESSOR(heading, int);
 SENSOR_ACCESSOR(water_speed_in_knots_times_100, int);

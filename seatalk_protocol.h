@@ -11,6 +11,7 @@ typedef enum {
   SENSOR_ID_RUDDER_POSITION
 } SENSOR_ID;
 
+void wake_transmitter(void);
 int seatalk_sensor_pending(SENSOR_ID *sensor_id);
 void handle_seatalk_datagram(char *datagram);
 int get_pending_datagram(char *datagram);

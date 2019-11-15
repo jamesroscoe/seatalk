@@ -8,6 +8,7 @@
 #include "boat_status.h"
 #include "seatalk_datagram.h"
 #include "seatalk_command.h"
+#include "seatalk_protocol.h"
 
 #define MAX_COMMAND_DELAY 3 // seconds
 #define SLEEP_DURATION 100 // milliseconds
@@ -21,10 +22,19 @@ int seatalk_command_pending(void) {
   return command_datagram_bytes_remaining > 0;
 }
 
+int get_command_datagram(char *datagram) {
+  int i;
+  for (i = 0; i < command_datagram_bytes_remaining; i++) {
+    datagram[i] = command_datagram[i];
+  }
+  return command_datagram_bytes_remaining;
+}
+
 int send_command(int length) {
   int count = 0;
   command_datagram_position = 0;
   command_datagram_bytes_remaining = length;
+  wake_transmitter();
   while (command_datagram_bytes_remaining && (count++ <= MAX_COMMAND_LOOPS)) {
     usleep_range(SLEEP_DURATION, SLEEP_DURATION * 2);
   }

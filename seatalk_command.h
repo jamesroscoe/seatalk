@@ -1,3 +1,4 @@
+int get_command_datagram(char *datagram);
 int seatalk_command_pending(void);
 //void send_command(int length);
 int set_lamp_intensity(int level);

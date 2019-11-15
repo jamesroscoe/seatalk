@@ -2,7 +2,7 @@
 #include "timeout.h"
 #include "settings.h"
 #include "boat_sensor.h"
-#include "seatalk_transport_layer.h"
+#include "seatalk_protocol.h"
 
 int sensors_initialized = 0;
 
@@ -45,7 +45,7 @@ void update_##NAME##_sensor(TYPE NAME) {\
   SENSOR_VARIABLE(NAME) = NAME;\
   VALIDATE_SENSOR(NAME);\
   UNTRANSMITTED_SENSOR_VALUE(NAME);\
-  initiate_seatalk_transmitter();\
+  wake_transmitter();\
 }
 
 DEFINE_SENSOR(heading, int);
