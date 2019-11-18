@@ -14,6 +14,7 @@ This should be treated as a device driver. It can be linked into an application 
 
 OR
 
+    #include "boat_status.h"      // there are types defined here used by seatalk_datagram.h
     #include "seatalk_datagram.h" // build or parse raw datagrams to be sent or collected by other means
 
 * to get device status from the SeaTalk bus call get_x_status where &lt;x&gt; is the name of a device (eg autopilot)
@@ -46,7 +47,11 @@ Should you need to uninstall it use:
 
     $ sudo rmmod seatalk.ko
 
-The kernel extension will add files in three directories:
+You can then connect to the computer whatever bridge hardware you have and run a loopback test with:
+
+    $ sudo test/test_kernel_extension
+
+The kernel extension will add virtual files in three directories:
 
     /sys/seatalk/sensors
     /sys/seatalk/status
