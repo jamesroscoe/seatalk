@@ -35,6 +35,9 @@ void set_bus_state(BUS_STATE new_state) {
 // note: pattern is send-byte, receive-byte. Next transmit cannot take place
 //   before receive because of event timing.
 int seatalk_byte_transmitted(void) {
+#ifdef DEBUG
+  LOG("seatalk_byte_transmitted: %x\n", tx_byte);
+#endif
   transmit_buffer_position++;
   if (--transmit_datagram_bytes_remaining == 0) {
     return 1;
@@ -52,10 +55,13 @@ void cancel_datagram(void) {
 int seatalk_byte_received(char data_byte, int command_bit) {
   BUS_STATE current_state = bus_state;
   set_bus_state(BUS_STATE_WAIT_FOR_IDLE);
-//  LOG("byte received: %x command_bit: %d bytes_remaining: %d", data_byte, command_bit, receive_datagram_bytes_remaining);
+#ifdef DEBUG
+  LOG("byte received: %x command_bit: %d bytes_remaining: %d", data_byte, command_bit, receive_datagram_bytes_remaining);
+#endif
   if (current_state == BUS_STATE_TRANSMITTING) {
     // collision; cancel current datagram and idle the bus for 10 cycles
-    if (data_byte != transmit_buffer[transmit_buffer_position]) {
+    if (data_byte != tx_byte) {
+      LOG("data byte != tx_byte (%x)", tx_byte);
       cancel_datagram();
       return 1;
     }
@@ -85,15 +91,15 @@ int seatalk_byte_received(char data_byte, int command_bit) {
 }
 
 int initiate_seatalk_receive_character(void) {
-  if (rx_bit_number == -1) {
-    BUS_STATE current_state = bus_state;
-    if ((current_state == BUS_STATE_IDLE) || (current_state == BUS_STATE_WAIT_FOR_IDLE)) {
-      set_bus_state(BUS_STATE_RECEIVING);
-    }
-    return 1;
-  } else {
-    return 0;
+  BUS_STATE current_state = bus_state;
+  // rx_bit_number is -1 if we are not currently receiving a byte
+  if (rx_bit_number != -1) { // are we mid-character?
+    return 0;                // exit and tell receiver to ignore this 1 to 0 transition
   }
+  if ((current_state == BUS_STATE_IDLE) || (current_state == BUS_STATE_WAIT_FOR_IDLE)) {
+    set_bus_state(BUS_STATE_RECEIVING);
+  }
+  return 1;
 }
 
 int seatalk_receive_bit() {
@@ -159,7 +165,6 @@ int seatalk_byte_to_send(char *data_byte, int *command_bit) {
 
 int seatalk_transmit_bit() {
   int current_bit = tx_bit_number;
-//  LOG("seatalk_transmit_bit; tx_bit_number: %d", tx_bit_number);
   if (current_bit == -1) {
     if (bus_state == BUS_STATE_WAIT_FOR_IDLE) {
       set_bus_state(BUS_STATE_IDLE);
@@ -173,14 +178,17 @@ int seatalk_transmit_bit() {
     }
     set_bus_state(BUS_STATE_TRANSMITTING);
     set_seatalk_hardware_bit_value(0); // start bit draws line down to zero
-    tx_bit_number++;
+//    LOG("start bit sent; sending character %c (%2x) with command_bit %d", tx_byte, tx_byte, tx_command_bit);
   } else if (current_bit <= 7) {
+//    LOG("seatalk_transmit_bit tx_bit_number: %d (rx_bit_number: %d)", current_bit, rx_bit_number);
     set_seatalk_hardware_bit_value((tx_byte >> current_bit) & 0x01); // data bit
   } else if (current_bit == 8) {
     set_seatalk_hardware_bit_value(tx_command_bit); // send command bit
   } else {
     tx_bit_number = -1; // start new character on next iteration
     set_seatalk_hardware_bit_value(1); // set high for stop bit
+    return 1; // transmit loop returns to bit zero and stops there if nothing to send
   }
+  tx_bit_number++;
   return 1;
 }

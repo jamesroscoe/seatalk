@@ -22,7 +22,7 @@ short int gpio_rxd_irq = 0;
 // bit timer period; 1000000000 ns/s / 4800 bits/s = 208333 ns/bit
 #define BIT_INTERVAL 208333
 // start receive timer 3/4 bit after triggering edge of start bit
-#define START_BIT_DELAY 156250
+#define START_BIT_DELAY (BIT_INTERVAL / 4)
 
 // receive data
 static struct hrtimer hrtimer_rxd;
@@ -49,9 +49,9 @@ int get_seatalk_hardware_bit_value(void) {
 
 void set_seatalk_hardware_bit_value(int bit_value) {
   gpio_set_value(GPIO_TXD_PIN, (bit_value == GPIO_HIGH_VALUE) ? 1 : 0); // normal sense
-#ifdef DEBUG
-  pr_info("set GPIO_TXD_PIN to %d\n", bit_value);
-#endif
+//#ifdef DEBUG
+//  pr_info("set GPIO_TXD_PIN to %d\n", bit_value);
+//#endif
 }
 
 static enum hrtimer_restart receive_bit(struct hrtimer *timer) {
@@ -66,8 +66,7 @@ static enum hrtimer_restart receive_bit(struct hrtimer *timer) {
 }
 
 static enum hrtimer_restart transmit_bit(struct hrtimer *timer) {
-  int more_bits_to_send = seatalk_transmit_bit();
-  if (more_bits_to_send == 0) {
+  if (seatalk_transmit_bit() == 0) {
     return HRTIMER_NORESTART;
   } else {
     hrtimer_forward_now(&hrtimer_txd, ktime_set(0, BIT_INTERVAL));

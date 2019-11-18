@@ -24,12 +24,32 @@ struct kobj_attribute level_attribute = __ATTR(level, 0660, sysfs_get_level, sys
 static ssize_t sysfs_get_speed_test(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
 struct kobj_attribute speed_test_attribute = __ATTR(speed_test, 0440, sysfs_get_speed_test, NULL);
 
+int rising;
+long rise_time = 0;
+long fall_time = 0;
+int handled = 0;
+
+struct timespec start_time;
+
+long time_delta(void) {
+  struct timespec end_time = current_kernel_time();
+  long delta_seconds = end_time.tv_sec - start_time.tv_sec, delta_nanos = end_time.tv_nsec - start_time.tv_nsec;
+//  pr_info("delta_seconds: %l, delta_nanos: %l\n", delta_seconds, delta_nanos);
+  return delta_seconds * 1000000000 + delta_nanos;
+}
+
 static irqreturn_t level_irq_handler(int irq, void *dev_id, struct pt_regs *regs) {
   unsigned long flags;
+  int delta;
 
   local_irq_save(flags); // disable hardware interrupts
-  interrupt_fired += 1;
-//  pr_info("interrupt!");
+  delta = time_delta();
+  if (rising) {
+    rise_time += delta;
+  } else {
+    fall_time += delta;
+  }
+  handled = 1;
   local_irq_restore(flags); // restore hardware interrupts
   return IRQ_HANDLED;
 }
@@ -52,6 +72,7 @@ static ssize_t sysfs_set_level(struct kobject *kobj, struct kobj_attribute *attr
 }
 
 static ssize_t sysfs_get_speed_test(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+/*
   int high = MAX_TIME;
   int low = 0;
   int time = high;
@@ -90,6 +111,22 @@ static ssize_t sysfs_get_speed_test(struct kobject *kobj, struct kobj_attribute 
   }
   set_seatalk_hardware_bit_value(1);
   return sprintf(buf, "%d\n", high);
+*/
+#define TIMING_ITERATIONS 200000
+  int i;
+  set_seatalk_hardware_bit_value(0);
+  rise_time = 0;
+  fall_time = 0;
+  for (i = 0; i < TIMING_ITERATIONS; i++) {
+    handled = 0;
+    rising = (i & 0x1) == 0;
+    start_time = current_kernel_time();
+    set_seatalk_hardware_bit_value(rising);
+    while (!handled) {
+      udelay(10);
+    }
+  }
+  return sprintf(buf, "After %d iterations rise time (ns): %d (total %d), fall_time: %d (total %d)\n", TIMING_ITERATIONS, ((rise_time * 2) / TIMING_ITERATIONS), rise_time, ((fall_time * 2) / TIMING_ITERATIONS), fall_time);
 }
 
 static int init_sysfs(void) {

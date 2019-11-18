@@ -31,23 +31,22 @@ void handle_seatalk_datagram(char *datagram) {
 }
 
 int get_pending_datagram(char *datagram) {
-  int count = 2;
+  int i = 2;
   datagram[0] = 0xff;
-  while (1) {
-    datagram[count++] = tx_buffer[tx_buffer_tail];
+  while (tx_buffer_tail != tx_buffer_head) {
+    pr_info("adding %c (%2x) to output datagram", tx_buffer[i], tx_buffer[i]);
+    datagram[i++] = tx_buffer[tx_buffer_tail];
     tx_buffer_tail = (tx_buffer_tail + 1) & 0xff;
-    if (tx_buffer_tail == tx_buffer_head) {
-      break;
-    }
   }
-  datagram[1] = count - 3;
-  return count > 0 ? count : 0;
+  datagram[1] = i-3;
+  return i;
 }
 
 int set_bytes_to_send(const char *buf, int count) {
   int i;
   pr_info("send: %s", buf);
   for (i = 0; i < count; i++) {
+    pr_info("adding %c (%2x) to tx_buffer", buf[i], buf[i]);
     tx_buffer[tx_buffer_head] = buf[i];
     tx_buffer_head = (tx_buffer_head + 1) & 0xff;
   }

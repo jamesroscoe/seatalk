@@ -7,7 +7,7 @@ insmod ../seatalk.ko
 for heading in 0 9 29 101 157 187 210 300 315 330 341 350 359
 do
   echo "$heading" > /sys/seatalk/sensors/heading
-  sleep 0.25
+  sleep 0.5
   status_heading=`cat /sys/seatalk/status/heading`
   if [ "$heading" != "$status_heading" ]; then
     echo "failed to propagate heading sensor value sent ($heading) to status/heading received ($status_heading)"

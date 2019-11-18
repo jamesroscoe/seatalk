@@ -623,6 +623,8 @@ static int __init init_seatalk_module(void) {
     pr_info("Unable to initialize Seatalk IRQ. Exiting");
     goto cleanup_irq;
   }
+  initialize_status();
+  initialize_sensors();
   pr_info("Seatalk module initialization complete.");
   return 0;
 
