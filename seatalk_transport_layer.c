@@ -61,13 +61,17 @@ int seatalk_byte_received(char data_byte, int command_bit) {
   if (current_state == BUS_STATE_TRANSMITTING) {
     // collision; cancel current datagram and idle the bus for 10 cycles
     if (data_byte != tx_byte) {
-      LOG("data byte != tx_byte (%x)", tx_byte);
+#ifdef DEBUF
+      LOG("data byte (%2x) != tx_byte (%2x)", data_byte, tx_byte);
+#endif
       cancel_datagram();
       return 1;
     }
   }
   if (command_bit) { // parity (command) bit is high: start new command
-    // printf("command bit received; emptying buffer\n");
+#ifdef DEBUG
+    LOG("command bit received; emptying buffer\n");
+#endif
     receive_buffer_position = 0;
     receive_datagram_bytes_remaining = 255;
   }
@@ -96,6 +100,11 @@ int initiate_seatalk_receive_character(void) {
   if (rx_bit_number != -1) { // are we mid-character?
     return 0;                // exit and tell receiver to ignore this 1 to 0 transition
   }
+#ifdef DEBUG
+  if (tx_bit_number != 0) {
+   LOG("starting new character after tx bit %d (should be 0)\n", tx_bit_number);
+  }
+#endif
   if ((current_state == BUS_STATE_IDLE) || (current_state == BUS_STATE_WAIT_FOR_IDLE)) {
     set_bus_state(BUS_STATE_RECEIVING);
   }
@@ -105,10 +114,18 @@ int initiate_seatalk_receive_character(void) {
 int seatalk_receive_bit() {
   int bit_value = get_seatalk_hardware_bit_value();
   if (++rx_bit_number == 0) {
+#ifdef DEBUG
+    LOG("rx beginning new character\n");
+#endif
     rx_byte = 0;
     rx_command_bit = 0;
   }
   if (rx_bit_number <= 7) {
+#ifdef DEBUG
+    if (bit_value != ((tx_byte >> rx_bit_number) & 0x1)) {
+      LOG("received %d but expected %d\n", bit_value, !bit_value);
+    }
+#endif
     rx_byte |= (bit_value << rx_bit_number);
     return 1;
   } else if (rx_bit_number == 8) {
@@ -177,10 +194,16 @@ int seatalk_transmit_bit() {
       return 0;
     }
     set_bus_state(BUS_STATE_TRANSMITTING);
+#ifdef DEBUG
+    LOG("character to send: %2x; current RxD value: %d; sending start bit\n", tx_byte, get_seatalk_hardware_bit_value());
+#endif
     set_seatalk_hardware_bit_value(0); // start bit draws line down to zero
-//    LOG("start bit sent; sending character %c (%2x) with command_bit %d", tx_byte, tx_byte, tx_command_bit);
   } else if (current_bit <= 7) {
-//    LOG("seatalk_transmit_bit tx_bit_number: %d (rx_bit_number: %d)", current_bit, rx_bit_number);
+#ifdef DEBUG
+    if ((tx_bit_number > 0) && (rx_bit_number == -1)) {
+      LOG("rx didn't start on time\n");
+    }
+#endif
     set_seatalk_hardware_bit_value((tx_byte >> current_bit) & 0x01); // data bit
   } else if (current_bit == 8) {
     set_seatalk_hardware_bit_value(tx_command_bit); // send command bit

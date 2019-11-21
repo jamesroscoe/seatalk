@@ -11,7 +11,7 @@
 #define GPIO_TXD_DESC "Seatalk TxD pin"
 #define GPIO_DEVICE_DESC "Seatalk communications driver"
 
-#define DEBOUNCE_PERIOD 10000
+#define DEBOUNCE_PERIOD 60000
 #define TIMING_ITERATIONS 100000
 
 // interrupt variables
@@ -59,15 +59,19 @@ static irqreturn_t transition_irq_handler(int irq, void *dev_id, struct pt_regs 
   unsigned long delta;
 
   local_irq_save(flags);
-  last_value = get_seatalk_hardware_bit_value();
-  if (!handled && debounced(last_interrupt_time)) {
+  last_value = !rising;
+  if (debounced(last_interrupt_time)) {
     delta = time_delta(start_time);
     if (last_value) {
       falling_irq_count += 1;
-      irq_fall_time += delta;
+      if (!handled) {
+        irq_fall_time += delta;
+      }
     } else {
       rising_irq_count += 1;
-      irq_rise_time += delta;
+      if (!handled) {
+        irq_rise_time += delta;
+      }
     }
     getrawmonotonic(&last_interrupt_time);
     handled = 1;
