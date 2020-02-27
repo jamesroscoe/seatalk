@@ -12,10 +12,10 @@
 #define GPIO_DEVICE_DESC "Seatalk communications driver"
 
 #define START_BIT_DIRECTION IRQF_TRIGGER_RISING
-#define GPIO_RX_HIGH_VALUE 0
 #define GPIO_RX_LOW_VALUE 1
-#define GPIO_TX_HIGH_VALUE 0
+#define GPIO_RX_HIGH_VALUE 0
 #define GPIO_TX_LOW_VALUE 1
+#define GPIO_TX_HIGH_VALUE 0
 
 // interrupt variables
 short int gpio_rxd_irq = 0;
