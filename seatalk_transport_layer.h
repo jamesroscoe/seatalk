@@ -1,5 +1,8 @@
 // Bus communication functions
 
+int seatalk_initialize_transport_layer();
+void seatalk_exit_transport_layer();
+
 // Implementation Instructions:
 //   * a byte is received as s series of 8 bits followed by 1 command bit.
 //   * each new byte is begun with a high-to-low transition on the SeaTalk bus
@@ -14,7 +17,7 @@
 // return values:
 //   0 -- already receiving; hardware layer should do nothing
 //   1 -- hardware layer should initiate the bit receiver timer
-int initiate_seatalk_receive_character(void);
+int seatalk_initiate_receive_character(int seatalk_port);
 
 // called from hardware layer start bit handler if
 // SHOULD_INITIATE_SEATALK_RECEIVE_CHARACTER returns 1
@@ -24,16 +27,18 @@ int initiate_seatalk_receive_character(void);
 // return values:
 //   0 -- no more bits to receive; hardware layer should terminate rx timer
 //   1 -- more bits expected
-int seatalk_receive_bit(void);
+int seatalk_receive_bit(int seatalk_port);
 
 // called from seatalk_state when there is a new datagram to transmit
-void initiate_seatalk_transmitter(void);
+void seatalk_wake_transmitter(int seatalk_port);
 
 // called from bit transmitter timer handler to set tx line value
 // return values:
 //   0 -- no more bits to transmit; hardware layer should terminate tx timer
 //   any other value -- fire timer again after this many bit durations
-int seatalk_transmit_bit(void);
+int seatalk_transmit_bit(int seatalk_port);
+
+int seatalk_queue_datagram(int seatalk_port, int datagram_length, char *datagram);
 
 typedef enum {
   BUS_STATE_IDLE,

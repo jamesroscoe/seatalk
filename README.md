@@ -1,15 +1,23 @@
-# Open-source C library for handling two-way communication over Raymarine's SeaTalk protocol.
+# Open-source C++ library for handling two-way communication over Raymarine's SeaTalk protocol.
+
+These files are vanilla C code so *.cpp could in theory be renamed to .c if for some reason that became necessary.
 
 This is not officially supported in any way, shape or form by anyone. *Use this at your own risk!*
 
 This could not have been possible without Thomas Knauf's absolutely indispensible SeaTalk reference found here: http://www.thomasknauf.de/seatalk.htm. Thank you, Thomas, for all the work it must have taken to work out the protocol details! I am in awe.
 
-This should be treated as a device driver. It can be linked into an application or it can be installed as a Linux kernel extension.
+This is a library only and will not compile a executable file. Related projects:
+- (seatalk-linux)[https://github.com/jamesroscoe/seatalk-linux.git] Linux kernel extension to read and write seatalk data data using files in /sys/seatalk; requires a hardwar layer, eg: (seatalk-hardware-linux-gpio)[https://github.com/jamesroscoe/seatalk-hardware-linux-gpio.git].
+- (seatalk-hardware-linux-gpio)[https://github.com/jamesroscoe/seatalk-hardware-linux-gpio.git] Use GPIO pins on a Linux device (eg Raspberry Pi) to read and write SeaTalk data. Use in conjunciton with (seatalk-linux)[https://github.com/jamesroscoe/seatalk-linux.git] as GPIO pins must be manipulated from within kernel space.
+
+This should be treated as a device driver. It can be linked into an application or it can be installed as a Linux kernel extension. The source for the kernel extension is in the (seatalk-linux)[https://github.com/jamesroscoe/seatalk-linux.git] repo.
 
 ## Using it within an application
 
+Include the (seatalk-instruments)[https://github.com/jamesroscoe/seatalk-status] repo
+
     #include "boat_status.h"      // access data read from the bus
-    #include "boat_sensor.h"      // write sensor data to the bus 
+    #include "boat_sensor.h"      // write sensor data to the bus
     #include "seatalk_command.h"  // write commands to the bus
 
 OR
@@ -33,7 +41,7 @@ If using this in a microcontroller you should be able to write your own MCU-spec
 
 This has been tested on a Raspberry Pi. There is nothing in the source code that is obviously RPi-specific so in theory it should compile for any Linux machine that provides you with GPIO pins.
 
-The Linux kernel extension (once compiled) makes this very easy. You 
+The Linux kernel extension (once compiled) makes this very easy. You
 To compile the kernel extension you will first need to have the kernel headers for your specific Linux version. That is beyond the scope of this README. Once you have that:
 
     $ cd seatalk/linux

@@ -1,4 +1,4 @@
-#include "boat_status.h"
+#include "seatalk_protocol.h"
 #include "seatalk_datagram.h"
 
 #define INITIALIZE_DATAGRAM(DATAGRAM_NUMBER, HIGH_NIBBLE_OF_SECOND_BYTE) initialize_datagram(datagram, 0x##DATAGRAM_NUMBER, DATAGRAM_##DATAGRAM_NUMBER##_LENGTH, HIGH_NIBBLE_OF_SECOND_BYTE)
@@ -67,14 +67,6 @@
 #define DATAGRAM_A8_LENGTH 6
 #define DATAGRAM_AB_LENGTH 6
 
-char first_nibble(char c) {
-  return (c & 0xf0) >> 4;
-}
-
-char last_nibble(char c) {
-  return (c & 0x0f);
-}
-
 int two_bytes(char *datagram, int index) {
   int byte1, byte2;
   byte1 = datagram[index];
@@ -104,10 +96,6 @@ int fix_twos_complement_word(int value) {
 
 int flag(int flags, int mask) {
   return (flags & mask) ? 1 : 0;
-}
-
-int get_datagram_length(char second_byte) {
-  return last_nibble(second_byte);
 }
 
 void initialize_datagram(char *datagram, int datagram_number, int total_length, int high_nibble_of_second_byte) {
@@ -159,7 +147,7 @@ int alarm_is_active(int active_alarms, int alarm) {
   return (active_alarms & alarm) ? 0xffff : 0;
 }
 
-int build_depth_below_transducer(char *datagram, int depth_in_feet_times_10, int display_in_metres, int active_alarms, int transducer_defective) {
+int st_build_depth_below_transducer(char *datagram, int depth_in_feet_times_10, int display_in_metres, int active_alarms, int transducer_defective) {
   // 00 02 yz xx xx
   // depth below transducer (in feet): xxxx/10
   // anchor alarm: y & 0x8
@@ -176,10 +164,10 @@ int build_depth_below_transducer(char *datagram, int depth_in_feet_times_10, int
   return DATAGRAM_00_LENGTH;
 }
 
-void parse_depth_below_transducer(char *datagram, int *depth_in_feet_times_10, int *display_units, int *active_alarms, int *transducer_defective) {
+void st_parse_depth_below_transducer(char *datagram, int *depth_in_feet_times_10, int *display_units, int *active_alarms, int *transducer_defective) {
   int y, z, xxxx;
-  y = first_nibble(datagram[2]);
-  z = last_nibble(datagram[2]);
+  y = FIRST_NIBBLE(datagram[2]);
+  z = LAST_NIBBLE(datagram[2]);
   xxxx = two_bytes(datagram, 3);
   *depth_in_feet_times_10 = xxxx;
   *display_units = flag(y, 0x4);
@@ -190,7 +178,7 @@ void parse_depth_below_transducer(char *datagram, int *depth_in_feet_times_10, i
   *transducer_defective = flag(z, 0x4);
 }
 
-int build_engine_rpm_and_pitch(char *datagram, ENGINE_ID engine_id, int rpm, int pitch_percent) {
+int st_build_engine_rpm_and_pitch(char *datagram, ENGINE_ID engine_id, int rpm, int pitch_percent) {
   // 05 03 0x yy zz pp
   // x = 0: single engine (supply starboard_indicator as -1)
   // x = 1: starboard engine (supply staboard_indicator as 1)
@@ -219,7 +207,7 @@ int build_engine_rpm_and_pitch(char *datagram, ENGINE_ID engine_id, int rpm, int
   return DATAGRAM_05_LENGTH;
 }
 
-void parse_engine_rpm_and_pitch(char *datagram, ENGINE_ID *engine_id, int *rpm, int *pitch_percent) {
+void st_parse_engine_rpm_and_pitch(char *datagram, ENGINE_ID *engine_id, int *rpm, int *pitch_percent) {
   int x, yyzz, pp;
   x = datagram[2];
   yyzz = two_bytes(datagram, 3);
@@ -238,7 +226,7 @@ void parse_engine_rpm_and_pitch(char *datagram, ENGINE_ID *engine_id, int *rpm, 
   *pitch_percent = fix_twos_complement_char(pp);
 }
 
-int build_apparent_wind_angle(char *datagram, int degrees_right_times_2) {
+int st_build_apparent_wind_angle(char *datagram, int degrees_right_times_2) {
   // 10 01 xx yy
   // xxyy/2 = degrees right of bow
   int xx, yy;
@@ -250,13 +238,13 @@ int build_apparent_wind_angle(char *datagram, int degrees_right_times_2) {
   return DATAGRAM_10_LENGTH;
 }
 
-void parse_apparent_wind_angle(char *datagram, int *degrees_right_times_2) {
+void st_parse_apparent_wind_angle(char *datagram, int *degrees_right_times_2) {
   int xxyy;
   xxyy = two_bytes(datagram, 2);
   *degrees_right_times_2 = fix_twos_complement_word(xxyy);
 }
 
-int build_apparent_wind_speed(char *datagram, int knots_times_10, int display_in_metric) {
+int st_build_apparent_wind_speed(char *datagram, int knots_times_10, int display_in_metric) {
   // 11 01 xx 0y
   // wind speed: (xx & 0x7f) + y/10
   // units flag xx & 0x80; 0 knots/0x80 m/s
@@ -275,15 +263,15 @@ int build_apparent_wind_speed(char *datagram, int knots_times_10, int display_in
   return DATAGRAM_11_LENGTH;
 }
 
-void parse_apparent_wind_speed(char *datagram, int *knots_times_10, int *display_in_metric) {
+void st_parse_apparent_wind_speed(char *datagram, int *knots_times_10, int *display_in_metric) {
   int xx, y;
   xx = datagram[2];
-  y = last_nibble(datagram[3]);
+  y = LAST_NIBBLE(datagram[3]);
   *knots_times_10 = (xx & 0x7f) * 10 + y;
   *display_in_metric = flag(xx, 0x80);
 }
 
-int build_water_speed(char *datagram, int knots_times_10) {
+int st_build_water_speed(char *datagram, int knots_times_10) {
   // 20 01 xx xx
   // water speed = xxxx/10 knots
   int xx1, xx2;
@@ -295,13 +283,13 @@ int build_water_speed(char *datagram, int knots_times_10) {
   return DATAGRAM_20_LENGTH;
 }
 
-void parse_water_speed(char *datagram, int *knots_times_10) {
+void st_parse_water_speed(char *datagram, int *knots_times_10) {
   int xxxx;
   xxxx = two_bytes(datagram, 2);
   *knots_times_10 = xxxx;
 }
 
-int build_trip_mileage(char *datagram, int nmiles_times_100) {
+int st_build_trip_mileage(char *datagram, int nmiles_times_100) {
   // 21 02 xx xx 0x
   // mileage = xxxxx/100 nautical  miles
   int xx1, xx2, x;
@@ -315,13 +303,13 @@ int build_trip_mileage(char *datagram, int nmiles_times_100) {
   return DATAGRAM_21_LENGTH;
 }
 
-void parse_trip_mileage(char *datagram, int *miles_times_100) {
+void st_parse_trip_mileage(char *datagram, int *miles_times_100) {
   int xxxxx;
-  xxxxx = (two_bytes(datagram, 2) << 4) | last_nibble(datagram[4]);
+  xxxxx = (two_bytes(datagram, 2) << 4) | LAST_NIBBLE(datagram[4]);
   *miles_times_100 = xxxxx;
 }
 
-int build_total_mileage(char *datagram, int nmiles_times_10) {
+int st_build_total_mileage(char *datagram, int nmiles_times_10) {
   // 22 02 x xx 0x
   // mileage = xxxx/10 nautical  miles
   int xx1, xx2;
@@ -334,13 +322,13 @@ int build_total_mileage(char *datagram, int nmiles_times_10) {
   return DATAGRAM_22_LENGTH;
 }
 
-void parse_total_mileage(char *datagram, int *miles_times_10) {
+void st_parse_total_mileage(char *datagram, int *miles_times_10) {
   int xxxx;
   xxxx = two_bytes(datagram, 2);
   *miles_times_10 = xxxx;
 }
 
-int build_water_temperature(char *datagram, int degrees_fahrenheit, int transducer_defective) {
+int st_build_water_temperature(char *datagram, int degrees_fahrenheit, int transducer_defective) {
   // 23 z1 xx yy
   // z & 0x4 sensor problem
   // xx degrees Celsius, yy degrees Fahrenheit
@@ -354,16 +342,16 @@ int build_water_temperature(char *datagram, int degrees_fahrenheit, int transduc
   return DATAGRAM_23_LENGTH;
 }
 
-void parse_water_temperature(char *datagram, int *degrees_fahrenheit, int *transducer_defective) {
+void st_parse_water_temperature(char *datagram, int *degrees_fahrenheit, int *transducer_defective) {
   int xx, yy, z;
   xx = datagram[2];
   yy = datagram[3];
-  z = first_nibble(datagram[1]);
+  z = FIRST_NIBBLE(datagram[1]);
   *degrees_fahrenheit = yy;;
   *transducer_defective = flag(z, 0x4);
 }
 
-int build_speed_distance_units(char *datagram, DISTANCE_UNITS distance_units) {
+int st_build_speed_distance_units(char *datagram, DISTANCE_UNITS distance_units) {
   // 24 02 00 00 xx
   // xx == 00 nm/kts; 06 sm/mph; 86 km/kph
   int xx;
@@ -383,7 +371,7 @@ int build_speed_distance_units(char *datagram, DISTANCE_UNITS distance_units) {
   return DATAGRAM_24_LENGTH;
 }
 
-void parse_speed_distance_units(char *datagram, DISTANCE_UNITS *distance_units) {
+void st_parse_speed_distance_units(char *datagram, DISTANCE_UNITS *distance_units) {
   int xx;
   xx = datagram[4];
   if (xx == 0) {
@@ -395,7 +383,7 @@ void parse_speed_distance_units(char *datagram, DISTANCE_UNITS *distance_units) 
   }
 }
 
-int build_total_and_trip_mileage(char *datagram, int total_nm_times_10, int trip_nm_times_100) {
+int st_build_total_and_trip_mileage(char *datagram, int total_nm_times_10, int trip_nm_times_100) {
   // 25 z4 xx yy uu vv aw
   // total = (z * 4096 + yy * 256 + xx) / 10 (max 104857.5 nm)
   // trip = (w * 65546 + vv * 256 + uu) / 100 (max 10485.85 nm)
@@ -421,19 +409,19 @@ int build_total_and_trip_mileage(char *datagram, int total_nm_times_10, int trip
   return DATAGRAM_25_LENGTH;
 }
 
-void parse_total_and_trip_mileage(char *datagram, int *total_mileage_times_10, int *trip_mileage_times_100) {
+void st_parse_total_and_trip_mileage(char *datagram, int *total_mileage_times_10, int *trip_mileage_times_100) {
   int xx, yy, uu, vv, z, w;
   xx = datagram[2];
   yy = datagram[3];
   uu = datagram[4];
   vv = datagram[5];
-  z = first_nibble(datagram[1]);
-  w = last_nibble(datagram[6]);
+  z = FIRST_NIBBLE(datagram[1]);
+  w = LAST_NIBBLE(datagram[6]);
   *total_mileage_times_10 = (z << 16) | (yy << 8) | xx;
   *trip_mileage_times_100 = (w << 16) | (vv << 8) | uu;
 }
 
-int build_average_water_speed(char *datagram, int knots_1_times_100, int knots_2_times_100, int speed_1_from_sensor, int speed_2_is_average, int average_is_stopped, int display_in_statute_miles) {
+int st_build_average_water_speed(char *datagram, int knots_1_times_100, int knots_2_times_100, int speed_1_from_sensor, int speed_2_is_average, int average_is_stopped, int display_in_statute_miles) {
   // 26 04 xx xx yy yy de
   // xxxx/100 = current speed (kts), valid if d & 0x4 == 4
   // yyyy/100 = average speed (kts), d & 0x8: 8 => sensor; 0 => trip log/time
@@ -459,12 +447,12 @@ int build_average_water_speed(char *datagram, int knots_1_times_100, int knots_2
   return DATAGRAM_26_LENGTH;
 }
 
-void parse_average_water_speed(char *datagram, int *knots_1_times_100, int *knots_2_times_100, int *speed_1_from_sensor, int *speed_2_is_average, int *average_is_stopped, int *display_in_statute_miles) {
+void st_parse_average_water_speed(char *datagram, int *knots_1_times_100, int *knots_2_times_100, int *speed_1_from_sensor, int *speed_2_is_average, int *average_is_stopped, int *display_in_statute_miles) {
   int xxxx, yyyy, d, e;
   xxxx = two_bytes(datagram, 2);
   yyyy = two_bytes(datagram, 4);
-  d = first_nibble(datagram[6]);
-  e = last_nibble(datagram[6]);
+  d = FIRST_NIBBLE(datagram[6]);
+  e = LAST_NIBBLE(datagram[6]);
   *knots_1_times_100 = xxxx;
   *knots_2_times_100 = yyyy;
   *speed_1_from_sensor = flag(d, 0x4);
@@ -473,7 +461,7 @@ void parse_average_water_speed(char *datagram, int *knots_1_times_100, int *knot
   *display_in_statute_miles = flag(e, 0x2);
 }
 
-int build_precise_water_temperature(char *datagram, int degrees_celsius_times_10) {
+int st_build_precise_water_temperature(char *datagram, int degrees_celsius_times_10) {
   // 27 01 xx xx
   // (xxxx - 100) / 10 = temperature in Celsius
   int temp_temperature, xx1, xx2;
@@ -486,13 +474,13 @@ int build_precise_water_temperature(char *datagram, int degrees_celsius_times_10
   return DATAGRAM_27_LENGTH;
 }
 
-void parse_precise_water_temperature(char *datagram, int *degrees_celsius_times_10) {
+void st_parse_precise_water_temperature(char *datagram, int *degrees_celsius_times_10) {
   int xxxx;
   xxxx = two_bytes(datagram, 2);
   *degrees_celsius_times_10 = xxxx - 100;
 }
 
-int build_lamp_intensity(char *datagram, int intensity) {
+int st_build_set_lamp_intensity(char *datagram, int intensity) {
   // 30 00 0x x value/intensity 0x0/0, 0x4/1, 0x8/2, 0xc/3
   int x;
   switch (intensity) {
@@ -513,9 +501,9 @@ int build_lamp_intensity(char *datagram, int intensity) {
   return DATAGRAM_30_LENGTH;
 }
 
-void parse_lamp_intensity(char *datagram, int *level) {
+void st_parse_set_lamp_intensity(char *datagram, int *level) {
   int x;
-  x = last_nibble(datagram[2]);
+  x = LAST_NIBBLE(datagram[2]);
   switch (x) {
     case 0x0:
       *level = 0;
@@ -532,14 +520,14 @@ void parse_lamp_intensity(char *datagram, int *level) {
   }
 }
 
-int build_cancel_mob(char *datagram) {
+int st_build_cancel_mob(char *datagram) {
   // 36 00 01 no variation
   INITIALIZE_DATAGRAM(36, 0);
   datagram[2] = 1;
   return DATAGRAM_36_LENGTH;
 }
 
-int build_lat_position(char *datagram, LATITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_100) {
+int st_build_lat_position(char *datagram, LATITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_100) {
   // use -ve degrees for southern hemisphere
   // 50 Z2 XX YY YY
   // XX degrees, (YYYY & 0x7fff)/100 minutes
@@ -557,7 +545,7 @@ int build_lat_position(char *datagram, LATITUDE_HEMISPHERE hemisphere, int degre
   return DATAGRAM_50_LENGTH;
 }
 
-void parse_lat_position(char *datagram, LATITUDE_HEMISPHERE *hemisphere, int *degrees, int *minutes_times_100) {
+void st_parse_lat_position(char *datagram, LATITUDE_HEMISPHERE *hemisphere, int *degrees, int *minutes_times_100) {
   int xx, yyyy;
   xx = datagram[2];
   yyyy = two_bytes(datagram, 3);
@@ -566,7 +554,7 @@ void parse_lat_position(char *datagram, LATITUDE_HEMISPHERE *hemisphere, int *de
   *minutes_times_100 = yyyy & 0x7fff;
 }
 
-int build_lon_position(char *datagram, LONGITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_100) {
+int st_build_lon_position(char *datagram, LONGITUDE_HEMISPHERE hemisphere, int degrees, int minutes_times_100) {
   // use -ve degrees for eastern hemisphere
   // 51 Z2 XX YY YY
   // XX degrees, (YYYY & 0x7fff)/100 minutes
@@ -584,7 +572,7 @@ int build_lon_position(char *datagram, LONGITUDE_HEMISPHERE hemisphere, int degr
   return DATAGRAM_51_LENGTH;
 }
 
-void parse_lon_position(char *datagram, LONGITUDE_HEMISPHERE *hemisphere, int *degrees, int *minutes_times_100) {
+void st_parse_lon_position(char *datagram, LONGITUDE_HEMISPHERE *hemisphere, int *degrees, int *minutes_times_100) {
   int xx, yyyy;
   xx = datagram[2];
   yyyy = two_bytes(datagram, 3);
@@ -593,7 +581,7 @@ void parse_lon_position(char *datagram, LONGITUDE_HEMISPHERE *hemisphere, int *d
   *minutes_times_100 = yyyy & 0x7fff;
 }
 
-int build_speed_over_ground(char *datagram, int knots_times_10) {
+int st_build_speed_over_ground(char *datagram, int knots_times_10) {
   // 52 01 XX XX
   // XXXX/10 is speed over ground in kts
   int xxxx = knots_times_10;
@@ -603,13 +591,13 @@ int build_speed_over_ground(char *datagram, int knots_times_10) {
   return DATAGRAM_52_LENGTH;
 }
 
-void parse_speed_over_ground(char *datagram, int *knots_times_10) {
+void st_parse_speed_over_ground(char *datagram, int *knots_times_10) {
   int xxxx;
   xxxx = two_bytes(datagram, 2);
   *knots_times_10 = xxxx;
 }
 
-int build_course_over_ground(char *datagram, int true_degrees) {
+int st_build_course_over_ground(char *datagram, int true_degrees) {
   // 53 U0 VW
   // true course = (U & 0x3) * 90 + (VW & 0x3F) * 2 + (U & 0xC) >> 2
   int u, vw;
@@ -619,14 +607,14 @@ int build_course_over_ground(char *datagram, int true_degrees) {
   return DATAGRAM_53_LENGTH;
 }
 
-void parse_course_over_ground(char *datagram, int *true_degrees) {
+void st_parse_course_over_ground(char *datagram, int *true_degrees) {
   int u, vw;
-  u = first_nibble(datagram[1]);
+  u = FIRST_NIBBLE(datagram[1]);
   vw = datagram[2];
   *true_degrees = ((u & 0x3) * 90) + ((vw & 0x3f) * 2) + (u >> 3);
 }
 
-int build_gmt_time(char *datagram, int hours, int minutes, int seconds) {
+int st_build_gmt_time(char *datagram, int hours, int minutes, int seconds) {
   // 54, T1, RS, HH
   // HH = hours
   // 6 highest bits of RST = minutes = (RS & 0xfc) >> 2
@@ -642,9 +630,9 @@ int build_gmt_time(char *datagram, int hours, int minutes, int seconds) {
   return DATAGRAM_54_LENGTH;
 }
 
-void parse_gmt_time(char *datagram, int *hours, int *minutes, int *seconds) {
+void st_parse_gmt_time(char *datagram, int *hours, int *minutes, int *seconds) {
   int t, rs, hh;
-  t = first_nibble(datagram[1]);
+  t = FIRST_NIBBLE(datagram[1]);
   rs = datagram[2];
   hh = datagram[3];
   *hours = hh;
@@ -652,7 +640,7 @@ void parse_gmt_time(char *datagram, int *hours, int *minutes, int *seconds) {
   *seconds = ((rs & 0x3) << 4) | t;
 }
 
-int build_date(char *datagram, int year, int month, int day) {
+int st_build_date(char *datagram, int year, int month, int day) {
   // 56 M1 DD YY
   // YY year M month D day of month
   int yy, m, dd;
@@ -665,9 +653,9 @@ int build_date(char *datagram, int year, int month, int day) {
   return DATAGRAM_56_LENGTH;
 }
 
-void parse_date(char *datagram, int *year, int *month, int *day) {
+void st_parse_date(char *datagram, int *year, int *month, int *day) {
   int m, dd, yy;
-  m = first_nibble(datagram[1]);
+  m = FIRST_NIBBLE(datagram[1]);
   dd = datagram[2];
   yy = datagram[3] + 1970; // arbitrary epoch offset until real data available
   *year = yy;
@@ -675,7 +663,7 @@ void parse_date(char *datagram, int *year, int *month, int *day) {
   *day = dd;
 }
 
-int build_satellite_info(char *datagram, int satellite_count, int horizontal_dilution_of_position) {
+int st_build_satellite_info(char *datagram, int satellite_count, int horizontal_dilution_of_position) {
   // 58 z5 la xx yy lo qq rr
   // lat/lon position
   // la, lo degrees latitude, longitude
@@ -691,15 +679,15 @@ int build_satellite_info(char *datagram, int satellite_count, int horizontal_dil
   return DATAGRAM_57_LENGTH;
 }
 
-void parse_satellite_info(char *datagram, int *satellite_count, int *horizontal_dilution_of_position) {
+void st_parse_satellite_info(char *datagram, int *satellite_count, int *horizontal_dilution_of_position) {
   int s, dd;
-  s = first_nibble(datagram[1]);
+  s = FIRST_NIBBLE(datagram[1]);
   dd = datagram[2];
   *satellite_count = s;
   *horizontal_dilution_of_position = dd;
 }
 
-int build_lat_lon_position(char *datagram, LATITUDE_HEMISPHERE hemisphere_latitude, int degrees_lat, int minutes_lat_times_1000, LONGITUDE_HEMISPHERE hemisphere_longitude, int degrees_lon, int minutes_lon_times_1000) {
+int st_build_lat_lon_position(char *datagram, LATITUDE_HEMISPHERE hemisphere_latitude, int degrees_lat, int minutes_lat_times_1000, LONGITUDE_HEMISPHERE hemisphere_longitude, int degrees_lon, int minutes_lon_times_1000) {
   int z, la, xx, yy, lo, qq, rr;
   z = 0;
   if (hemisphere_latitude == LATITUDE_HEMISPHERE_SOUTH) {
@@ -724,9 +712,9 @@ int build_lat_lon_position(char *datagram, LATITUDE_HEMISPHERE hemisphere_latitu
   return DATAGRAM_58_LENGTH;
 }
 
-void parse_lat_lon_position(char *datagram, LATITUDE_HEMISPHERE *hemisphere_latitude, int *degrees_lat, int *minutes_lat_times_1000, LONGITUDE_HEMISPHERE *hemisphere_longitude, int *degrees_lon, int *minutes_lon_times_1000) {
+void st_parse_lat_lon_position(char *datagram, LATITUDE_HEMISPHERE *hemisphere_latitude, int *degrees_lat, int *minutes_lat_times_1000, LONGITUDE_HEMISPHERE *hemisphere_longitude, int *degrees_lon, int *minutes_lon_times_1000) {
   int z, la, xxyy, lo, qqrr;
-  z = first_nibble(datagram[1]);
+  z = FIRST_NIBBLE(datagram[1]);
   la = datagram[2];
   xxyy = two_bytes(datagram, 3);
   lo = datagram[5];
@@ -739,7 +727,7 @@ void parse_lat_lon_position(char *datagram, LATITUDE_HEMISPHERE *hemisphere_lati
   *minutes_lon_times_1000 = qqrr;
 }
 
-int build_countdown_timer(char *datagram, int hours, int minutes, int seconds, TIMER_MODE mode) {
+int st_build_set_countdown_timer(char *datagram, int hours, int minutes, int seconds, TIMER_MODE mode) {
   // 59 22 ss mm xh
   // set countdown timer
   // mm minutes, ss seconds, h hours
@@ -773,12 +761,12 @@ int build_countdown_timer(char *datagram, int hours, int minutes, int seconds, T
   return DATAGRAM_59_LENGTH;
 }
 
-void parse_countdown_timer(char *datagram, int *hours, int *minutes, int *seconds, TIMER_MODE *mode) {
+void st_parse_set_countdown_timer(char *datagram, int *hours, int *minutes, int *seconds, TIMER_MODE *mode) {
   int ss, mm, x, h;
   ss = datagram[2];
   mm = datagram[3];
-  x = first_nibble(datagram[4]);
-  h = last_nibble(datagram[4]);
+  x = FIRST_NIBBLE(datagram[4]);
+  h = LAST_NIBBLE(datagram[4]);
   *hours = h;
   *minutes = mm & 0x7f;
   *seconds = ss;
@@ -795,7 +783,7 @@ void parse_countdown_timer(char *datagram, int *hours, int *minutes, int *second
   }
 }
 
-int build_wind_alarm(char *datagram, int active_alarms) {
+int st_build_wind_alarm(char *datagram, int active_alarms) {
   // 66 00 xy
   // x: apparent wind alarm; y: true wind
   // bits: & 0x8 angle low, 0x4 angle high, 0x2 speed low, 0x1 speed high
@@ -816,10 +804,10 @@ int build_wind_alarm(char *datagram, int active_alarms) {
   return DATAGRAM_66_LENGTH;
 }
 
-void parse_wind_alarm(char *datagram, int *active_alarms) {
+void st_parse_wind_alarm(char *datagram, int *active_alarms) {
   int x, y;
-  x = first_nibble(datagram[2]);
-  y = last_nibble(datagram[2]);
+  x = FIRST_NIBBLE(datagram[2]);
+  y = LAST_NIBBLE(datagram[2]);
   *active_alarms = 0;
   *active_alarms |= flag(x, 0x8) ? ALARM_APPARENT_WIND_ANGLE_LOW : 0;
   *active_alarms |= flag(x, 0x4) ? ALARM_APPARENT_WIND_ANGLE_HIGH : 0;
@@ -831,7 +819,7 @@ void parse_wind_alarm(char *datagram, int *active_alarms) {
   *active_alarms |= flag(y, 0x1) ? ALARM_TRUE_WIND_SPEED_HIGH : 0;
 }
 
-int build_alarm_acknowledgement(char *datagram, int acknowledged_alarm) {
+int st_build_alarm_acknowledgement(char *datagram, int acknowledged_alarm) {
   // 68 x1 yy 00
   // yy indicates which device acknowledged. Hard-coding to 01 here.
   // x: 1-shallow water; 2-deep water; 3-anchor; 4-true wind speed high;
@@ -881,10 +869,10 @@ int build_alarm_acknowledgement(char *datagram, int acknowledged_alarm) {
   return DATAGRAM_68_LENGTH;
 }
 
-void parse_alarm_acknowledgement(char *datagram, int *acknowledged_alarm) {
+void st_parse_alarm_acknowledgement(char *datagram, int *acknowledged_alarm) {
   int x;
   int y;
-  x = first_nibble(datagram[1]);
+  x = FIRST_NIBBLE(datagram[1]);
   y = datagram[2];
   if (y == 0x15) {
     *acknowledged_alarm = 0xffff;
@@ -927,20 +915,20 @@ void parse_alarm_acknowledgement(char *datagram, int *acknowledged_alarm) {
   }
 }
 
-void parse_maxview_keystroke(char *datagram, int *key_1, int *key_2, int *held_longer) {
+void st_parse_maxview_keystroke(char *datagram, int *key_1, int *key_2, int *held_longer) {
 //  int x, y;
-//  x = first_nibble(datagram[2]);
-//  y = last_nibble(datagram[2]);
+//  x = FIRST_NIBBLE(datagram[2]);
+//  y = LAST_NIBBLE(datagram[2]);
 //  *key_1 = 0;
 //  *key_2 = 0;
 //  *held_longer = (x & 0x4) ? 1 : 0;
 //  if (x & 0x2 == 0) { // single keypress
 //    switch (y) {
 //      case 1:
-//        *key_1 = 
+//        *key_1 =
 }
 
-int build_target_waypoint_name(char *datagram, int char1, int char2, int char3, int char4) {
+int st_build_target_waypoint_name(char *datagram, int char1, int char2, int char3, int char4) {
   // 82 05 xx !xx yy !yy zz !zz
   // !<> means reverse bits so xx + !xx = 0xff
   // last 4 chars of wpt name, upper case only; use 6 bits per char
@@ -970,7 +958,7 @@ int build_target_waypoint_name(char *datagram, int char1, int char2, int char3, 
   return DATAGRAM_82_LENGTH;
 }
 
-int parse_target_waypoint_name(char *datagram, int *char_1, int *char_2, int *char_3, int *char_4) {
+int st_parse_target_waypoint_name(char *datagram, int *char_1, int *char_2, int *char_3, int *char_4) {
   int xx, xx_comp, yy, yy_comp, zz, zz_comp;
   xx = datagram[2];
   xx_comp = datagram[3];
@@ -989,7 +977,7 @@ int parse_target_waypoint_name(char *datagram, int *char_1, int *char_2, int *ch
   return 0;
 }
 
-int build_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE failure_type) {
+int st_build_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE failure_type) {
   // 83 07 xx 00 00 00 00 00 80 00 00
   // course compuer failure
   // xx 0: sent after clearing failure and on power-up
@@ -1011,7 +999,7 @@ int build_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE f
   return DATAGRAM_83_LENGTH;
 }
 
-void parse_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE *failure_type) {
+void st_parse_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE *failure_type) {
   int xx;
   xx = datagram[2];
   switch (xx) {
@@ -1027,7 +1015,7 @@ void parse_course_computer_failure(char *datagram, COURSE_COMPUTER_FAILURE_TYPE 
   }
 }
 
-int build_autopilot_status(char *datagram, int compass_heading, TURN_DIRECTION  turning_direction, int target_heading, AUTOPILOT_MODE mode, int rudder_position, int alarms, int display_flags) {
+int st_build_autopilot_status(char *datagram, int compass_heading, TURN_DIRECTION  turning_direction, int target_heading, AUTOPILOT_MODE mode, int rudder_position, int alarms, int display_flags) {
   // 84 u6 vw xy 0z 0m rr ss tt
   // compass heading: (u & 0x3) * 90 + (vw & 0x3f) * 2 + (u & 0xc ? ((u & 0xc) == 0xc ? 2 : 1) : 0)
   // turning direction: msb of u; 1 right, 0 left
@@ -1035,7 +1023,7 @@ int build_autopilot_status(char *datagram, int compass_heading, TURN_DIRECTION  
   // mode: z & 0x2 = 0: standby; & 0x2 = 1: auto; &0x4 = vane; &0x8 = track
   // alarms: m & 4: off course; m & 8 wind shift
   // rudder position in degrees; positive numbers steer right
-  // ss = display; 0x1 turn of heading display; 0x2: always on; 0x8: "no data"
+  // ss = display; 0x1 turn off heading display; 0x2: always on; 0x8: "no data"
   //      0x10 "large xte"; 0x80: "auto rel"
   // tt: 400G computer always 0x08; 150(G) computer always 0x05
   int u, vw, xy, z, m, rr, ss, tt;
@@ -1067,15 +1055,15 @@ int build_autopilot_status(char *datagram, int compass_heading, TURN_DIRECTION  
   return DATAGRAM_84_LENGTH;
 }
 
-void parse_autopilot_status(char *datagram, int *compass_heading, TURN_DIRECTION *turning_direction, int *target_heading, AUTOPILOT_MODE *mode, int *rudder_position, int *alarms, int *display_flags) {
+void st_parse_autopilot_status(char *datagram, int *compass_heading, TURN_DIRECTION *turning_direction, int *target_heading, AUTOPILOT_MODE *mode, int *rudder_position, int *alarms, int *display_flags) {
   char u, vw, xy, z, m, rr, ss, tt;
 
   // printf("parse_autopilot_status\n");
-  u = first_nibble(datagram[1]);
+  u = FIRST_NIBBLE(datagram[1]);
   vw = datagram[2];
   xy = datagram[3];
-  z = last_nibble(datagram[4]);
-  m = last_nibble(datagram[5]);
+  z = LAST_NIBBLE(datagram[4]);
+  m = LAST_NIBBLE(datagram[5]);
   rr = datagram[6];
   ss = datagram[7];
   tt = datagram[8];
@@ -1083,7 +1071,7 @@ void parse_autopilot_status(char *datagram, int *compass_heading, TURN_DIRECTION
   *compass_heading = ((u & 0x03) * 90) + ((vw & 0x3f) * 2) + ((u & 0x0c) ? (((u & 0x0c) == 0x0c) ? 2 : 1) : 0);
   *turning_direction = flag(u, 0x08) ? TURN_DIRECTION_RIGHT : TURN_DIRECTION_LEFT;
   *target_heading = (((vw & 0xc0) >> 6) * 90) + (xy / 2);
-  *mode = z;
+  *mode = (AUTOPILOT_MODE)z;
   *rudder_position = fix_twos_complement_char(rr);
   *alarms = 0;
   *alarms |= flag(m, 0x04) ? ALARM_AUTOPILOT_OFF_COURSE : 0;
@@ -1091,7 +1079,7 @@ void parse_autopilot_status(char *datagram, int *compass_heading, TURN_DIRECTION
   *display_flags = ss;
 }
 
-int build_waypoint_navigation(char *datagram, int cross_track_error_present, int cross_track_error_times_100, int waypoint_bearing_present, int waypoint_bearing, int bearing_is_magnetic,\
+int st_build_waypoint_navigation(char *datagram, int cross_track_error_present, int cross_track_error_times_100, int waypoint_bearing_present, int waypoint_bearing, int bearing_is_magnetic,\
     int waypoint_distance_present, int waypoint_distance_times_100, int direction_to_steer) {
   // 85 x6 xx vu zw zz yf 00 !yf
   // cross track error = xxx/100
@@ -1145,24 +1133,25 @@ int build_waypoint_navigation(char *datagram, int cross_track_error_present, int
   return DATAGRAM_85_LENGTH;
 }
 
-int parse_waypoint_navigation(char *datagram, int *cross_track_error_present, int *cross_track_error_times_100, int *waypoint_bearing_present, int *waypoint_bearing, int *bearing_is_magnetic,
+int st_parse_waypoint_navigation(char *datagram, int *cross_track_error_present, int *cross_track_error_times_100, int *waypoint_bearing_present, int *waypoint_bearing, int *bearing_is_magnetic,
     int *waypoint_distance_present, int *waypoint_distance_times_100, int *direction_to_steer) {
   int x, xx, v, u, z, w, zz, yf, yf_comp;
   int y, f;
-  x = first_nibble(datagram[1]);
+  x = FIRST_NIBBLE(datagram[1]);
   xx = datagram[2];
-  v = first_nibble(datagram[3]);
-  u = last_nibble(datagram[3]);
-  z = first_nibble(datagram[4]);
-  w = last_nibble(datagram[4]);
+  v = FIRST_NIBBLE(datagram[3]);
+  u = LAST_NIBBLE(datagram[3]);
+  z = FIRST_NIBBLE(datagram[4]);
+  w = LAST_NIBBLE(datagram[4]);
   zz = datagram[5];
   yf = datagram[6];
   yf_comp = datagram[8];
   if ((yf | yf_comp) != 0xff) {
-    return -1;
+    // ignore if bit complement check fails
+    return 0;
   }
-  y = first_nibble(yf);
-  f = last_nibble(yf);
+  y = FIRST_NIBBLE(yf);
+  f = LAST_NIBBLE(yf);
   *cross_track_error_times_100 = (x << 8) + xx;
   *waypoint_bearing = ((u & 0x3) * 90) + (((w << 4) + v) >> 1);
   *bearing_is_magnetic = flag(u, 0x8) ? 0 : 1;
@@ -1171,10 +1160,10 @@ int parse_waypoint_navigation(char *datagram, int *cross_track_error_present, in
   *cross_track_error_present = flag(f, 0x1);
   *waypoint_bearing_present = flag(f, 0x2);
   *waypoint_distance_present = flag(f, 0x4);
-  return 0;
+  return 1;
 }
 
-int build_autopilot_command(char *datagram, ST_AUTOPILOT_COMMAND command) {
+int st_build_autopilot_command(char *datagram, ST_AUTOPILOT_COMMAND command) {
   // 86 x1 yy !yy
   // x = 1 for Z101 remote, 0 for ST1000+, x=2 for ST4000+ or ST600B
   // yy = command; !yy = yy bit complement for checksum
@@ -1196,21 +1185,21 @@ int build_autopilot_command(char *datagram, ST_AUTOPILOT_COMMAND command) {
   return DATAGRAM_86_LENGTH;
 }
 
-int parse_autopilot_command(char *datagram, ST_AUTOPILOT_COMMAND *command) {
+int st_parse_autopilot_command(char *datagram, ST_AUTOPILOT_COMMAND *command) {
   int x, yy, yy_comp;
-  x = first_nibble(datagram[1]);
+  x = FIRST_NIBBLE(datagram[1]);
   yy = datagram[2];
   yy_comp = datagram[3];
   if ((yy | yy_comp) != 0xff) {
     command = 0;
-    return -1;
+    return 0;
   }
-  *command = yy;
+  *command = (ST_AUTOPILOT_COMMAND)yy;
 
-  return 0;
+  return 1;
 }
 
-int build_set_autopilot_response_level(char *datagram, AUTOPILOT_RESPONSE_LEVEL response_level) {
+int st_build_set_autopilot_response_level(char *datagram, AUTOPILOT_RESPONSE_LEVEL response_level) {
   // 87 00 0x
   // x = 1: automatic deadband; x = 2: minimum deadband
   int x;
@@ -1224,13 +1213,13 @@ int build_set_autopilot_response_level(char *datagram, AUTOPILOT_RESPONSE_LEVEL 
   return DATAGRAM_87_LENGTH;
 }
 
-void parse_set_autopilot_response_level(char *datagram, AUTOPILOT_RESPONSE_LEVEL *response_level) {
+void st_parse_set_autopilot_response_level(char *datagram, AUTOPILOT_RESPONSE_LEVEL *response_level) {
   int x;
-  x = last_nibble(datagram[2]);
-  *response_level = x;
+  x = LAST_NIBBLE(datagram[2]);
+  *response_level = (AUTOPILOT_RESPONSE_LEVEL)x;
 }
 
-void parse_autopilot_parameter(char *datagram, int *parameter, int *min_value, int *max_value, int *value) {
+void st_parse_autopilot_parameter(char *datagram, int *parameter, int *min_value, int *max_value, int *value) {
   int ww, xx, yy, zz;
   ww = datagram[2];
   xx = datagram[3];
@@ -1242,7 +1231,7 @@ void parse_autopilot_parameter(char *datagram, int *parameter, int *min_value, i
   *value = xx;
 }
 
-int build_heading(char *datagram, int heading, int locked_heading_active, int locked_heading) {
+int st_build_heading(char *datagram, int heading, int locked_heading_active, int locked_heading) {
   // 89 U2 VW XY 2Z
   // compass (degrees)
   // lower two bits of U * 90 +
@@ -1268,18 +1257,18 @@ int build_heading(char *datagram, int heading, int locked_heading_active, int lo
   return DATAGRAM_89_LENGTH;
 }
 
-void parse_heading(char *datagram, int *heading, int *locked_heading_active, int *locked_heading) {
+void st_parse_heading(char *datagram, int *heading, int *locked_heading_active, int *locked_heading) {
   int u, vw, xy, z;
-  u = first_nibble(datagram[1]);
+  u = FIRST_NIBBLE(datagram[1]);
   vw = datagram[2];
   xy = datagram[3];
-  z = last_nibble(datagram[4]);
+  z = LAST_NIBBLE(datagram[4]);
   *heading = ((u & 0x3) * 90) + (vw & 0x3f) * 2 + ((u & 0xc) >> 3);
   *locked_heading_active = flag(z, 0x2);
   *locked_heading = ((vw & 0xc0) >> 6) * 90 + (xy >> 1);
 }
 
-int build_set_rudder_gain(char *datagram, int rudder_gain) {
+int st_build_set_rudder_gain(char *datagram, int rudder_gain) {
   // 91 00 0x
   // x = rudder gain (1-9)
   int x;
@@ -1289,22 +1278,22 @@ int build_set_rudder_gain(char *datagram, int rudder_gain) {
   return DATAGRAM_91_LENGTH;
 }
 
-void parse_set_rudder_gain(char *datagram, int *rudder_gain) {
+void st_parse_set_rudder_gain(char *datagram, int *rudder_gain) {
   int x;
-  x = last_nibble(datagram[2]);
+  x = LAST_NIBBLE(datagram[2]);
   *rudder_gain = x;
 }
 
-void parse_set_autopilot_parameter(char *datagram, int *parameter, int *value) {
+void st_parse_set_autopilot_parameter(char *datagram, int *parameter, int *value) {
   int xx, yy;
   xx = datagram[2];
   yy = datagram[3];
 }
 
-void parse_enter_autopilot_setup(char *datagram) {
+void st_parse_enter_autopilot_setup(char *datagram) {
 }
 
-int build_compass_variation(char *datagram, int degrees) {
+int st_build_compass_variation(char *datagram, int degrees) {
   // 99 00 xx
   // xx = variation west in degrees (-ve means variation east)
   int xx;
@@ -1314,13 +1303,13 @@ int build_compass_variation(char *datagram, int degrees) {
   return DATAGRAM_99_LENGTH;
 }
 
-void parse_compass_variation(char *datagram, int *degrees) {
+void st_parse_compass_variation(char *datagram, int *degrees) {
   int xx;
   xx = datagram[2];
   *degrees = fix_twos_complement_char(xx);
 }
 
-int build_heading_and_rudder_position(char *datagram, int heading, TURN_DIRECTION turning_direction, int rudder_position) {
+int st_build_heading_and_rudder_position(char *datagram, int heading, TURN_DIRECTION turning_direction, int rudder_position) {
   // 9c u1 vw rr
   // heading = (two low bits of u * 90 + vw * 2 + number of high bits in u
   // turning durection: high bit of u means right, 0 mans left
@@ -1334,9 +1323,9 @@ int build_heading_and_rudder_position(char *datagram, int heading, TURN_DIRECTIO
   return DATAGRAM_9C_LENGTH;
 }
 
-void parse_heading_and_rudder_position(char *datagram, int *heading, TURN_DIRECTION *turning_direction, int *rudder_position) {
+void st_parse_heading_and_rudder_position(char *datagram, int *heading, TURN_DIRECTION *turning_direction, int *rudder_position) {
   int u, vw, rr;
-  u = first_nibble(datagram[1]);
+  u = FIRST_NIBBLE(datagram[1]);
   vw = datagram[2];
   rr = datagram[3];
   *heading = (((u & 0x3) * 90) + ((vw & 0x3f) * 2) + (u & 0xc ? ((u & 0xc) == 0xc ? 2 : 1) : 0)) % 360;
@@ -1344,12 +1333,12 @@ void parse_heading_and_rudder_position(char *datagram, int *heading, TURN_DIRECT
   *rudder_position = fix_twos_complement_char(rr);;
 }
 
-void parse_destination_waypoint_info(char *datagram, char *last_4, char *first_8, int *more_records, int *last_record) {
+void st_parse_destination_waypoint_info(char *datagram, char *last_4, char *first_8, int *more_records, int *last_record) {
 }
 
-void parse_arrival_info(char *datagram, int *perpendicular_passed, int *circle_entered, int *char_1, int *char_2, int *char_3, int *char_4) {
+void st_parse_arrival_info(char *datagram, int *perpendicular_passed, int *circle_entered, int *char_1, int *char_2, int *char_3, int *char_4) {
   int x, ww, xx, yy, zz;
-  x = first_nibble(datagram[1]);
+  x = FIRST_NIBBLE(datagram[1]);
   ww = datagram[3];
   xx = datagram[4];
   yy = datagram[5];
@@ -1362,7 +1351,7 @@ void parse_arrival_info(char *datagram, int *perpendicular_passed, int *circle_e
   *char_4 = zz;
 }
 
-int build_gps_and_dgps_fix_info(char *datagram, int signal_quality_available, int signal_quality, int hdop_available, int hdop, int antenna_height, int satellite_count_available, int satellite_count, int geoseparation, int dgps_age_available, int dgps_age, int dgps_station_id_available, int dgps_station_id) {
+int st_build_gps_and_dgps_fix_info(char *datagram, int signal_quality_available, int signal_quality, int hdop_available, int hdop, int antenna_height, int satellite_count_available, int satellite_count, int geoseparation, int dgps_age_available, int dgps_age, int dgps_station_id_available, int dgps_station_id) {
   int qq, hh, aa, gg, zz, yy, dd;
   if (signal_quality_available) {
     qq = 0x10 | (signal_quality & 0x0f);
@@ -1405,7 +1394,7 @@ int build_gps_and_dgps_fix_info(char *datagram, int signal_quality_available, in
   return DATAGRAM_A5_LENGTH;
 }
 
-void parse_gps_and_dgps_fix_info(char *datagram, int *signal_quality_available, int *signal_quality, int *hdop_available, int *hdop, int *antenna_height, int *satellite_count_available, int *satellite_count, int *geoseparation, int *dgps_age_available, int *dgps_age, int *dgps_station_id_available, int *dgps_station_id) {
+void st_parse_gps_and_dgps_fix_info(char *datagram, int *signal_quality_available, int *signal_quality, int *hdop_available, int *hdop, int *antenna_height, int *satellite_count_available, int *satellite_count, int *geoseparation, int *dgps_age_available, int *dgps_age, int *dgps_station_id_available, int *dgps_station_id) {
   int qq, hh, aa, gg, zz, yy, dd;
   qq = datagram[2];
   hh = datagram[3];

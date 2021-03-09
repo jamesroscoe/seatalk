@@ -1,5 +1,0 @@
-#!/bin/sh
-while [ "1" = "1" ]; do
-  cat /sys/seatalk/status/autopilot/mode
-  sleep 1
-done
