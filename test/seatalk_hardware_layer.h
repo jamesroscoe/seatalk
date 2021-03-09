@@ -1,8 +1,0 @@
-#include "../seatalk_hardware_layer.h"
-
-#define TRANSPORT_LAYER_REFUSED_INITIATE_RECEIVE -1
-#define TRANSPORT_LAYER_ACCEPTED_INITIATE_RECEIVE_MID_BYTE -2
-#define TRANSPORT_LAYER_REFUSED_MORE_BITS_BEFORE_END_OF_BYTE -3
-#define TRANSPORT_LAYER_REQUESTED_MORE_BITS_AFTER_STOP_BIT -4
-
-int simulate_receive_character(char byte, int command_bit);

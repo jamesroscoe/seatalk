@@ -14,16 +14,23 @@ This should be treated as a device driver. It can be linked into an application 
 
 ## Using it within an application
 
-Include the (seatalk-instruments)[https://github.com/jamesroscoe/seatalk-status] repo
+Clone the (seatalk-instruments)[https://github.com/jamesroscoe/seatalk-status] at the same level you cloned this repository. Eg:
 
-    #include "boat_status.h"      // access data read from the bus
-    #include "boat_sensor.h"      // write sensor data to the bus
-    #include "seatalk_command.h"  // write commands to the bus
+        ~/my-seatalk-project/
+        seatalk/              # this repository
+        seatalk-instruments/  # clone (seatalk-instruments)[https://github.com/jamesroscoe/seatalk-instruments] here
+        your-project-here/    # your project code in a subdirectory of your choice
+
+In your application code, include the headers:
+
+    #include "../seatalk-instruments/boat_status.h"      // access data read from the bus
+    #include "../seatalk-instruments/boat_sensor.h"      // write sensor data to the bus
+    #include "../seatalk-instruments/seatalk_command.h"  // write commands to the bus
 
 OR
 
-    #include "boat_status.h"      // there are types defined here used by seatalk_datagram.h
-    #include "seatalk_datagram.h" // build or parse raw datagrams to be sent or collected by other means
+    #include "../seatalk_instruments/boat_status.h"      // there are types defined here used by seatalk_datagram.h
+    #include "../seatalk_instruments/seatalk_datagram.h" // build or parse raw datagrams to be sent or collected by other means
 
 * to get device status from the SeaTalk bus call get_x_status where &lt;x&gt; is the name of a device (eg autopilot)
 * to write a sensor value to the SeaTalk bus call set_x_sensor where &lt;x&gt; is the name of a sensor (eg compass)
@@ -36,35 +43,3 @@ To use it this way you will need to provide a seatalk_hardware_layer.c file that
 If using this under Linux you might want to consider using the kernel extension method instead as it reduces SeaTalk communications to file operations. In any case, under Linux this will need to be run as root in order to get access to the GPIO pins and interrupt handler.
 
 If using this in a microcontroller you should be able to write your own MCU-specific seatalk_hardware_layer.c file to generate an interrupt when the start bit is received and to start the receive and transmit timers as needed.
-
-## Using the Linux kernel extension
-
-This has been tested on a Raspberry Pi. There is nothing in the source code that is obviously RPi-specific so in theory it should compile for any Linux machine that provides you with GPIO pins.
-
-The Linux kernel extension (once compiled) makes this very easy. You
-To compile the kernel extension you will first need to have the kernel headers for your specific Linux version. That is beyond the scope of this README. Once you have that:
-
-    $ cd seatalk/linux
-    $ sudo make
-
-Install the kernel extension using:
-
-    $ sudo insmod seatalk.ko
-
-Should you need to uninstall it use:
-
-    $ sudo rmmod seatalk.ko
-
-You can then connect to the computer whatever bridge hardware you have and run a loopback test with:
-
-    $ sudo test/test_kernel_extension
-
-The kernel extension will add virtual files in three directories:
-
-    /sys/seatalk/sensors
-    /sys/seatalk/status
-    /sys/seatalk/commands
-
-* To write a sensor value to the SeaTalk bus write its value to the appropriate file in /sys/seatalk/sensors (eg heading). Note that this can only be done from the root account (ie you need to use "sudo -i" or your program needs to be running as a daemon).
-* To read a status value that has been broadcast on the SeaTalk bus read it from the appropriate file in /sys/seatalk/status (eg the autopilot subdirectory).
-* all numeric data is presented as an integer. Where decimals are necessary a multiplier (10 or 100) is applied. Status and sensor value names include a description of any such multipliers (eg water_speed_in_knots_times_100).
