@@ -1,1 +1,1 @@
-#include "../seatalk/seatalk_protocol.h"
+#include "../seatalk-source/seatalk_protocol.h"
